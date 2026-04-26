@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; // 🔥 add this
+import { useRouter } from "next/navigation"; 
 import { apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
@@ -11,49 +11,117 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const router = useRouter(); // 🔥
+  const router = useRouter(); 
 
-  const handleLogin = async () => {
-    setLoading(true);
-    setError("");
+function getLocationAsync(email: string) {
+  if (!navigator.geolocation) return;
 
-    try {
-      const data = await apiFetch("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+
+      let location = "Unknown";
+
+      try {
+       
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+        );
+
+        const data = await res.json();
+
+        const city =
+          data.address.city ||
+          data.address.town ||
+          data.address.village ||
+          data.address.state;
+
+        const country = data.address.country;
+
+        location = `${city}, ${country}`;
+      } catch {
+        location = "Location unavailable";
+      }
+
+      const loginData = {
+        time: new Date().toISOString(),
+        location,
+      };
+
+    
+      localStorage.setItem("loginInfo", JSON.stringify(loginData));
+
+    
+      const logs =
+        JSON.parse(localStorage.getItem("userLogs") || "[]");
+
+      logs.push({
+        email,
+        ...loginData,
+        type: "LOGIN",
       });
 
-      console.log("LOGIN RESPONSE:", data);
+      localStorage.setItem("userLogs", JSON.stringify(logs));
+    },
 
-      const token =
-        data.access_token || data.token || data.accessToken;
+    () => {
+      const fallback = {
+        time: new Date().toISOString(),
+        location: "Permission denied",
+      };
 
-      if (!token) {
-        throw new Error("No token returned");
-      }
+      localStorage.setItem("loginInfo", JSON.stringify(fallback));
+    }
+  );
+}
 
-      localStorage.setItem("token", token);
+const handleLogin = async () => {
+  setLoading(true);
+  setError("");
 
-      // 🔥 Decode token to get role
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      console.log("USER PAYLOAD:", payload);
+  try {
+    const data = await apiFetch("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
 
-      const role = payload.role;
+    const token =
+      data.access_token || data.token || data.accessToken;
 
+    if (!token) throw new Error("No token returned");
+
+    localStorage.setItem("token", token);
+
+    
   
-      if (role === "ADMIN" || role === "SUPERADMIN") {
-        router.push("/admin"); 
-      } else {
-        router.push("/employee");
-      }
+    localStorage.setItem(
+  "loginInfo",
+  JSON.stringify({
+    email,
+    time: new Date().toISOString(),
+    location: "Fetching...",
+  })
+);
 
-    } catch (err: any) {
-      console.error("LOGIN ERROR:", err);
-      setError(err.message || "Login failed");
+    // ✅ async location (handles logs internally)
+    getLocationAsync(email);
+
+    // ✅ redirect (no dependency on location)
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const role = payload.role;
+
+    if (role === "ADMIN" || role === "SUPERADMIN") {
+      router.push("/admin");
+    } else {
+      router.push("/employee");
     }
 
-    setLoading(false);
-  };
+  } catch (err: any) {
+    setError(err.message || "Login failed");
+  }
+
+  setLoading(false);
+};
 
   const Spinner = () => (
     <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

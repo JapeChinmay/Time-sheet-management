@@ -34,12 +34,10 @@ export default function Timesheet() {
 
   const days = mode === "WEEKLY" ? 5 : 30;
 
-  // ---------------- LOAD PROJECTS ----------------
-
+  // 🔥 LOAD PROJECTS
   const loadProjects = async () => {
     try {
       const res = await apiFetch("/projects");
-
       const list = Array.isArray(res) ? res : res.data || [];
 
       setProjects(list);
@@ -62,8 +60,7 @@ export default function Timesheet() {
     loadProjects();
   }, [mode]);
 
-  // ---------------- UPDATE HOURS ----------------
-
+  // 🔥 UPDATE HOURS
   const updateHours = (rowIndex: number, dayIndex: number, value: number) => {
     const safe = Math.max(0, value);
 
@@ -74,8 +71,7 @@ export default function Timesheet() {
     });
   };
 
-  // ---------------- CREATE PROJECT ----------------
-
+  // 🔥 CREATE PROJECT
   const createProject = async () => {
     if (!form.name.trim()) return alert("Name required");
 
@@ -94,8 +90,7 @@ export default function Timesheet() {
     }
   };
 
-  // ---------------- SUBMIT TIMESHEET (🔥 MAIN FIX) ----------------
-
+  // 🔥 SUBMIT TIMESHEET
   const submitTimesheet = async () => {
     try {
       setSubmitting(true);
@@ -123,7 +118,7 @@ export default function Timesheet() {
                   projectId: row.projectId,
                   date: date.toISOString().split("T")[0],
                   hours: h,
-                  description: `Logged via ${mode} sheet`,
+                  description: `Logged via ${mode}`,
                 }),
               })
             );
@@ -133,22 +128,18 @@ export default function Timesheet() {
 
       await Promise.all(requests);
 
-      alert("Timesheet submitted successfully 🚀");
+      alert("Timesheet submitted 🚀");
 
     } catch (err) {
       console.error(err);
-      alert("Failed to submit timesheet");
+      alert("Submission failed");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ---------------- TOTAL ----------------
-
   const totalRow = (hours: number[]) =>
     hours.reduce((a, b) => a + b, 0);
-
-  // ---------------- USER NAME ----------------
 
   const getUser = () => {
     try {
@@ -163,49 +154,58 @@ export default function Timesheet() {
     return <SmartLoader name={getUser().name} />;
   }
 
-  // ---------------- UI ----------------
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Timesheet</h2>
+      {/* 🔥 HEADER */}
+      <div className="flex flex-col md:flex-row md:justify-between gap-4">
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => setMode("WEEKLY")}
-            className={`px-3 py-1 rounded ${
-              mode === "WEEKLY"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100"
-            }`}
-          >
-            Weekly
-          </button>
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-900">
+            Timesheet
+          </h2>
+          <p className="text-sm text-slate-500">
+            Track your daily work hours efficiently
+          </p>
+        </div>
 
-          <button
-            onClick={() => setMode("MONTHLY")}
-            className={`px-3 py-1 rounded ${
-              mode === "MONTHLY"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100"
-            }`}
-          >
-            Monthly
-          </button>
+        {/* MODE SWITCH */}
+        <div className="flex bg-slate-100 p-1 rounded-lg">
+          {["WEEKLY", "MONTHLY"].map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m as any)}
+              className={`px-4 py-1.5 text-sm rounded-md transition
+              ${
+                mode === m
+                  ? "bg-white shadow text-slate-900"
+                  : "text-slate-500"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="overflow-x-auto bg-white border rounded-lg p-4">
-        <table className="min-w-[700px] w-full text-sm">
-          <thead>
+      {/* 🔥 TABLE */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-x-auto"
+      >
+        <table className="min-w-[800px] w-full text-sm">
+
+          <thead className="border-b text-slate-500">
             <tr>
-              <th className="text-left">Project</th>
+              <th className="text-left py-2">Project</th>
 
               {Array.from({ length: days }).map((_, i) => (
-                <th key={i}>{i + 1}</th>
+                <th key={i}>
+                  {mode === "WEEKLY"
+                    ? ["M", "T", "W", "T", "F"][i]
+                    : i + 1}
+                </th>
               ))}
 
               <th>Total</th>
@@ -213,78 +213,91 @@ export default function Timesheet() {
           </thead>
 
           <tbody>
-            {rows.map((row, i) => (
-              <motion.tr key={row.projectId} className="border-t">
-
-                <td className="font-medium">{row.projectName}</td>
-
-                {row.hours.map((h, j) => (
-                  <td key={j}>
-                    <input
-                      type="number"
-                      min={0}
-                      value={h}
-                      onChange={(e) =>
-                        updateHours(i, j, Number(e.target.value))
-                      }
-                      className="w-12 text-center border rounded"
-                    />
+            <AnimatePresence>
+              {rows.map((row, i) => (
+                <motion.tr
+                  key={row.projectId}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="border-t hover:bg-slate-50"
+                >
+                  <td className="font-medium py-2 text-slate-800">
+                    {row.projectName}
                   </td>
-                ))}
 
-                <td className="font-medium">
-                  {totalRow(row.hours)}
-                </td>
+                  {row.hours.map((h, j) => (
+                    <td key={j}>
+                      <motion.input
+                        whileFocus={{ scale: 1.05 }}
+                        type="number"
+                        min={0}
+                        value={h}
+                        onChange={(e) =>
+                          updateHours(i, j, Number(e.target.value))
+                        }
+                        className="w-12 text-center border border-slate-200 rounded-md focus:ring-2 focus:ring-slate-900/10"
+                      />
+                    </td>
+                  ))}
 
-              </motion.tr>
-            ))}
+                  <td className="font-semibold">
+                    {totalRow(row.hours)}
+                  </td>
+                </motion.tr>
+              ))}
+            </AnimatePresence>
           </tbody>
         </table>
-      </div>
+      </motion.div>
 
-      {/* ACTIONS */}
-      <div className="flex gap-3">
+      {/* 🔥 ACTIONS */}
+      <div className="flex gap-3 flex-wrap">
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
           onClick={() => setShowModal(true)}
-          className="bg-slate-900 text-white px-4 py-2 rounded"
+          className="px-4 py-2 border border-slate-200 rounded-md bg-white hover:bg-slate-50 text-sm"
         >
           + Add Project
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
           onClick={submitTimesheet}
           disabled={submitting}
-          className="bg-green-600 text-white px-6 py-2 rounded disabled:opacity-50"
+          className="px-6 py-2 bg-slate-900 text-white rounded-md text-sm disabled:opacity-50"
         >
           {submitting ? "Submitting..." : "Submit Timesheet"}
-        </button>
-
+        </motion.button>
       </div>
 
-      {/* CREATE PROJECT MODAL */}
+      {/* 🔥 MODAL */}
       <AnimatePresence>
         {showModal && (
           <motion.div
-            className="fixed inset-0 bg-black/40 flex items-center justify-center"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-white p-6 rounded-xl w-full max-w-md"
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-md shadow-lg"
             >
-              <h3 className="mb-3 font-semibold">Create Project</h3>
+              <h3 className="text-lg font-semibold mb-4">
+                Create Project
+              </h3>
 
               <input
-                placeholder="Name"
+                placeholder="Project Name"
                 value={form.name}
                 onChange={(e) =>
                   setForm({ ...form, name: e.target.value })
                 }
-                className="w-full mb-2 border p-2 rounded"
+                className="w-full mb-3 px-3 py-2 border rounded-md"
               />
 
               <textarea
@@ -293,7 +306,7 @@ export default function Timesheet() {
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
                 }
-                className="w-full mb-2 border p-2 rounded"
+                className="w-full mb-3 px-3 py-2 border rounded-md"
               />
 
               <select
@@ -301,23 +314,23 @@ export default function Timesheet() {
                 onChange={(e) =>
                   setForm({ ...form, status: e.target.value })
                 }
-                className="w-full mb-3 border p-2 rounded"
+                className="w-full mb-4 px-3 py-2 border rounded-md"
               >
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="INACTIVE">INACTIVE</option>
               </select>
 
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={createProject}
-                  className="flex-1 bg-slate-900 text-white py-2 rounded"
+                  className="flex-1 bg-slate-900 text-white py-2 rounded-md"
                 >
                   Create
                 </button>
 
                 <button
                   onClick={() => setShowModal(false)}
-                  className="flex-1 border py-2 rounded"
+                  className="flex-1 border py-2 rounded-md"
                 >
                   Cancel
                 </button>

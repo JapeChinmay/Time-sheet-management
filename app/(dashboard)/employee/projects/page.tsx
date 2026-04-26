@@ -10,6 +10,10 @@ type Project = {
   name: string;
   description?: string;
   status: "ACTIVE" | "INACTIVE";
+
+  // 🔥 future ready
+  team?: { name: string }[];
+  lead?: string;
 };
 
 export default function ProjectsPage() {
@@ -25,12 +29,24 @@ export default function ProjectsPage() {
     status: "ACTIVE",
   });
 
-
   const loadProjects = async () => {
     try {
       const res = await apiFetch("/projects");
       const list = Array.isArray(res) ? res : res.data || [];
-      setProjects(list);
+
+      // 🔥 inject dummy team for UI (until backend ready)
+      const enhanced = list.map((p: any) => ({
+        ...p,
+        team: [
+          { name: "Rahul" },
+          { name: "Anita" },
+          { name: "Arjun" },
+        ],
+        lead: "Team Lead",
+      }));
+
+      setProjects(enhanced);
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -42,11 +58,9 @@ export default function ProjectsPage() {
     loadProjects();
   }, []);
 
-
   const openProject = async (id: number) => {
     try {
       setModalLoading(true);
-
       const data = await apiFetch(`/projects/${id}`);
 
       setSelected(data);
@@ -62,7 +76,6 @@ export default function ProjectsPage() {
       setModalLoading(false);
     }
   };
-
 
   const updateProject = async () => {
     if (!selected) return;
@@ -90,56 +103,103 @@ export default function ProjectsPage() {
     }
   };
 
-
-  if (loading) {
-    return <SmartLoader name={getUser().name} />;
-  }
-
-  if (error) {
-    return <p className="text-red-500">{error}</p>;
-  }
+  if (loading) return <SmartLoader name={getUser().name} />;
+  if (error) return <p className="text-red-500">{error}</p>;
 
   return (
-    <div>
-      <h1 className="text-2xl font-medium mb-5">
-        Your Projects
-      </h1>
+    <div className="space-y-6">
 
-    
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 🔥 HEADER */}
+      <div>
+        <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">
+          Projects
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Manage and monitor all active initiatives
+        </p>
+      </div>
+
+      {/* 🔥 GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+
         {projects.map((p) => (
           <motion.div
             key={p.id}
-            whileHover={{ y: -3 }}
+            whileHover={{ y: -5 }}
             onClick={() => openProject(p.id)}
-            className="bg-white border rounded-lg p-4 shadow-sm cursor-pointer"
+            className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm cursor-pointer overflow-hidden"
           >
-            <p className="font-medium">{p.name}</p>
-            <StatusBadge status={p.status} />
+            {/* subtle gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none" />
+
+            {/* content */}
+            <div className="relative space-y-3">
+
+              {/* TITLE */}
+              <div className="flex justify-between items-center">
+                <p className="font-semibold text-slate-900">
+                  {p.name}
+                </p>
+
+                <StatusBadge status={p.status} />
+              </div>
+
+              {/* DESCRIPTION */}
+              <p className="text-sm text-slate-500 line-clamp-2">
+                {p.description || "No description provided"}
+              </p>
+
+              {/* TEAM */}
+              <div className="flex items-center justify-between pt-2">
+
+                {/* avatars */}
+                <div className="flex -space-x-2">
+                  {p.team?.slice(0, 3).map((t, i) => (
+                    <div
+                      key={i}
+                      className="w-7 h-7 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center border-2 border-white"
+                    >
+                      {t.name[0]}
+                    </div>
+                  ))}
+
+                  {p.team && p.team.length > 3 && (
+                    <div className="w-7 h-7 rounded-full bg-slate-200 text-xs flex items-center justify-center">
+                      +{p.team.length - 3}
+                    </div>
+                  )}
+                </div>
+
+                {/* lead */}
+                <p className="text-xs text-slate-400">
+                  Lead: {p.lead || "—"}
+                </p>
+              </div>
+
+            </div>
           </motion.div>
         ))}
       </div>
 
- 
+      {/* 🔥 MODAL */}
       <AnimatePresence>
         {selected && (
           <motion.div
-            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-white p-6 rounded-xl w-full max-w-md"
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-md shadow-lg"
             >
               {modalLoading ? (
                 <SmartLoader name={getUser().name} />
               ) : (
                 <>
-                  <h2 className="text-lg font-semibold mb-4">
+                  <h2 className="text-lg font-semibold mb-4 text-slate-900">
                     Edit Project
                   </h2>
 
@@ -148,7 +208,7 @@ export default function ProjectsPage() {
                     onChange={(e) =>
                       setForm({ ...form, name: e.target.value })
                     }
-                    className="w-full mb-2 border p-2 rounded"
+                    className="w-full mb-3 px-3 py-2 border rounded-md"
                   />
 
                   <textarea
@@ -159,7 +219,7 @@ export default function ProjectsPage() {
                         description: e.target.value,
                       })
                     }
-                    className="w-full mb-2 border p-2 rounded"
+                    className="w-full mb-3 px-3 py-2 border rounded-md"
                   />
 
                   <select
@@ -170,23 +230,23 @@ export default function ProjectsPage() {
                         status: e.target.value as any,
                       })
                     }
-                    className="w-full mb-4 border p-2 rounded"
+                    className="w-full mb-4 px-3 py-2 border rounded-md"
                   >
                     <option value="ACTIVE">ACTIVE</option>
                     <option value="INACTIVE">INACTIVE</option>
                   </select>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button
                       onClick={updateProject}
-                      className="flex-1 bg-slate-900 text-white py-2 rounded"
+                      className="flex-1 bg-slate-900 text-white py-2 rounded-md"
                     >
                       Save
                     </button>
 
                     <button
                       onClick={() => setSelected(null)}
-                      className="flex-1 border py-2 rounded"
+                      className="flex-1 border py-2 rounded-md"
                     >
                       Cancel
                     </button>
@@ -197,13 +257,15 @@ export default function ProjectsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
 
-
+/* 🔥 STATUS */
 function StatusBadge({ status }: { status: string }) {
-  const base = "text-xs px-2 py-1 rounded-full font-medium ml-2";
+  const base =
+    "text-xs px-2 py-1 rounded-full font-medium";
 
   if (status === "ACTIVE") {
     return (

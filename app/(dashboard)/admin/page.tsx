@@ -3,18 +3,19 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
- import SmartLoader from "@/components/ui/SmartLoader";
+import SmartLoader from "@/components/ui/SmartLoader";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
     totalProjects: 0,
-    totalHours: 320, // still mock
+    totalHours: 320,
     idlePercent: 18,
   });
 
   const [loading, setLoading] = useState(true);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   const weekly = [120, 150, 180, 140, 200];
 
@@ -23,24 +24,29 @@ export default function AdminDashboard() {
       try {
         const usersRes = await apiFetch("/users");
         const projectsRes = await apiFetch("/projects");
-        console.log(usersRes);
-        console.log(projectsRes);
-const totalUsers = Array.isArray(usersRes)
-  ? usersRes.length
-  : usersRes?.total ??
-    usersRes?.count ??
-    usersRes?.data?.length ??
-    0;
 
-const totalProjects = Array.isArray(projectsRes)
-  ? projectsRes.length
-  : projectsRes?.total ??
-    projectsRes?.count ??
-    projectsRes?.data?.length ??
-    0;
+        const logs =
+          JSON.parse(localStorage.getItem("userLogs") || "[]");
 
-     
-        const activeUsers = Math.floor(totalUsers * (0.6 + Math.random() * 0.2));
+        setAuditLogs([...logs].reverse());
+
+        const totalUsers = Array.isArray(usersRes)
+          ? usersRes.length
+          : usersRes?.total ??
+            usersRes?.count ??
+            usersRes?.data?.length ??
+            0;
+
+        const totalProjects = Array.isArray(projectsRes)
+          ? projectsRes.length
+          : projectsRes?.total ??
+            projectsRes?.count ??
+            projectsRes?.data?.length ??
+            0;
+
+        const activeUsers = Math.floor(
+          totalUsers * (0.6 + Math.random() * 0.2)
+        );
 
         setStats((prev) => ({
           ...prev,
@@ -59,51 +65,23 @@ const totalProjects = Array.isArray(projectsRes)
     loadData();
   }, []);
 
-
-  const insights = {
-    users:
-      stats.totalUsers > 50
-        ? "User base growing fast 🚀"
-        : "User growth is steady",
-
-    active:
-      stats.activeUsers / (stats.totalUsers || 1) > 0.7
-        ? "High engagement 🔥"
-        : "Engagement can improve",
-
-    projects:
-      stats.totalProjects > 10
-        ? "Strong project pipeline"
-        : "Fewer active projects",
-
-    hours:
-      stats.totalHours > 300
-        ? "Excellent productivity"
-        : "Scope to improve output",
+  const getUser = () => {
+    try {
+      const token = localStorage.getItem("token");
+      return JSON.parse(atob(token!.split(".")[1]));
+    } catch {
+      return { name: "User" };
+    }
   };
 
-
-
-if (loading) {
-  const token = localStorage.getItem("token");
-
-  let name = "User";
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      name = payload.name || "User";
-    } catch {}
-  }
-
-  return <SmartLoader name={name} />
-}
+  if (loading) return <SmartLoader name={getUser().name} />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
 
-    
+      {/* 🔥 HEADER */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-semibold text-slate-800">
+        <h1 className="text-2xl md:text-3xl font-semibold text-slate-900 tracking-tight">
           Admin Overview
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -111,72 +89,56 @@ if (loading) {
         </p>
       </div>
 
-     
+      {/* 🔥 STATS */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={{
-          hidden: {},
-          visible: { transition: { staggerChildren: 0.12 } },
+          visible: { transition: { staggerChildren: 0.1 } },
         }}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
       >
-        <AnimatedCard
-          title="Total Users"
-          value={`${stats.totalUsers}`}
-          alt={insights.users}
-        />
-
-        <AnimatedCard
-          title="Active Users"
-          value={`${stats.activeUsers}`}
-          alt={insights.active}
-        />
-
-        <AnimatedCard
-          title="Projects"
-          value={`${stats.totalProjects}`}
-          alt={insights.projects}
-        />
-
-        <AnimatedCard
-          title="Hours Logged"
-          value={`${stats.totalHours}h`}
-          alt={insights.hours}
-        />
+        <StatCard title="Total Users" value={stats.totalUsers} />
+        <StatCard title="Active Users" value={stats.activeUsers} />
+        <StatCard title="Projects" value={stats.totalProjects} />
+        <StatCard title="Hours Logged" value={`${stats.totalHours}h`} />
       </motion.div>
 
-      {/* Charts */}
+      {/* 🔥 CHARTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-    
+        {/* Workload */}
         <motion.div
-          whileHover={{ scale: 1.02 }}
-          className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
+          whileHover={{ y: -3 }}
+          className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
         >
-          <p className="text-sm font-medium text-slate-700 mb-4">
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none rounded-xl" />
+
+          <p className="text-sm font-medium text-slate-700 mb-4 relative">
             Weekly Workload
           </p>
 
-          <div className="flex items-end gap-3 h-36">
+          <div className="flex items-end gap-4 h-36 relative">
             {weekly.map((h, i) => (
-              <div key={i} className="flex flex-col items-center w-full">
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: `${h / 2}px` }}
-                  transition={{ duration: 0.6, delay: i * 0.1 }}
-                  className="w-7 bg-slate-900 rounded-md"
-                />
-                <span className="text-xs text-slate-500 mt-1">
+              <motion.div
+                key={i}
+                initial={{ height: 0 }}
+                animate={{ height: `${h / 2}px` }}
+                transition={{ duration: 0.6, delay: i * 0.1 }}
+                className="flex flex-col items-center w-full"
+              >
+                <div className="w-7 rounded-md bg-gradient-to-t from-slate-900 to-slate-600" />
+                <span className="text-xs text-slate-400 mt-1">
                   {["M", "T", "W", "T", "F"][i]}
                 </span>
-              </div>
+              </motion.div>
             ))}
           </div>
         </motion.div>
 
+        {/* Productivity */}
         <motion.div
-          whileHover={{ scale: 1.02 }}
+          whileHover={{ y: -3 }}
           className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
         >
           <p className="text-sm font-medium text-slate-700 mb-4">
@@ -188,7 +150,7 @@ if (loading) {
               initial={{ width: 0 }}
               animate={{ width: `${100 - stats.idlePercent}%` }}
               transition={{ duration: 0.8 }}
-              className="bg-slate-900 h-full"
+              className="bg-gradient-to-r from-slate-900 to-slate-600 h-full"
             />
           </div>
 
@@ -197,34 +159,52 @@ if (loading) {
             <span>Idle {stats.idlePercent}%</span>
           </div>
         </motion.div>
-
       </div>
 
-    
+      {/* 🔥 AUDIT TRAIL */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         <p className="text-sm font-medium text-slate-700 mb-4">
-          Audit Trail (Live Activity)
+          Audit Trail
         </p>
 
-        <div className="space-y-2 max-h-44 overflow-hidden">
+        <div className="space-y-3 max-h-64 overflow-auto">
+
           <AnimatePresence>
-            {[
-              "User onboarded",
-              "Project updated",
-              "Timesheet submitted",
-              "Admin changed role",
-            ].map((log, i) => (
+            {auditLogs.map((log, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-md border"
+                className="relative bg-slate-50 border rounded-lg p-4 text-sm"
               >
-                ✔️ {log}
+                {/* timeline dot */}
+                <div className="absolute left-[-8px] top-4 w-3 h-3 bg-slate-900 rounded-full" />
+
+                <p className="font-medium text-slate-800">
+                  {log.email}
+                </p>
+
+                {log.type === "SESSION" && (
+                  <div className="text-xs text-slate-500 space-y-1 mt-1">
+                    <p>
+                      🟢 {new Date(log.loginTime).toLocaleString()}
+                    </p>
+                    <p>📍 {log.loginLocation}</p>
+
+                    <p>
+                      🔴 {new Date(log.logoutTime).toLocaleString()}
+                    </p>
+                    <p>📍 {log.logoutLocation}</p>
+
+                    <p className="text-slate-400">
+                      ⏱ {log.duration}
+                    </p>
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
+
         </div>
       </div>
 
@@ -232,49 +212,23 @@ if (loading) {
   );
 }
 
-
-function AnimatedCard({
-  title,
-  value,
-  alt,
-}: {
-  title: string;
-  value: string;
-  alt: string;
-}) {
-  const [toggle, setToggle] = useState(true);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setToggle((prev) => !prev);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
+/* 🔥 STAT CARD */
+function StatCard({ title, value }: any) {
   return (
     <motion.div
       variants={{
-        hidden: { opacity: 0, y: 15 },
+        hidden: { opacity: 0, y: 10 },
         visible: { opacity: 1, y: 0 },
       }}
-      whileHover={{ y: -5, scale: 1.03 }}
-      className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm cursor-pointer"
+      whileHover={{ y: -5, scale: 1.02 }}
+      className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm overflow-hidden"
     >
-      <p className="text-xs text-slate-500">{title}</p>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60" />
 
-      <div className="h-6 mt-1 relative">
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={toggle ? value : alt}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="text-xl font-semibold text-slate-800 absolute"
-          >
-            {toggle ? value : alt}
-          </motion.p>
-        </AnimatePresence>
-      </div>
+      <p className="text-xs text-slate-500">{title}</p>
+      <p className="text-xl font-semibold text-slate-900 mt-1">
+        {value}
+      </p>
     </motion.div>
   );
 }
