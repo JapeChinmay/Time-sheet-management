@@ -1,8 +1,9 @@
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // 🔥 add this
+import { apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -10,23 +11,48 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const router = useRouter(); // 🔥
+
   const handleLogin = async () => {
     setLoading(true);
     setError("");
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      const data = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+
+      console.log("LOGIN RESPONSE:", data);
+
+      const token =
+        data.access_token || data.token || data.accessToken;
+
+      if (!token) {
+        throw new Error("No token returned");
+      }
+
+      localStorage.setItem("token", token);
+
+      // 🔥 Decode token to get role
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      console.log("USER PAYLOAD:", payload);
+
+      const role = payload.role;
+
+  
+      if (role === "ADMIN" || role === "SUPERADMIN") {
+        router.push("/admin"); 
+      } else {
+        router.push("/employee");
+      }
+
+    } catch (err: any) {
+      console.error("LOGIN ERROR:", err);
+      setError(err.message || "Login failed");
+    }
 
     setLoading(false);
-
-    if (res?.error) {
-      setError("Invalid email or password");
-    } else {
-      window.location.href = "/employee"; // better than /dashboard
-    }
   };
 
   const Spinner = () => (
@@ -38,7 +64,6 @@ export default function LoginPage() {
       
       <div className="w-full max-w-sm p-8 bg-white/90 backdrop-blur rounded-xl shadow-md border border-slate-200">
 
-        {/* Heading */}
         <div className="mb-7 text-center">
           <h2 className="text-[22px] font-medium tracking-tight text-slate-800 leading-tight">
             Sign in to your account
@@ -48,7 +73,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Email */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Email
@@ -60,7 +84,7 @@ export default function LoginPage() {
           />
         </div>
 
-        {/* Password */}
+   
         <div className="mb-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Password
@@ -73,7 +97,7 @@ export default function LoginPage() {
           />
         </div>
 
-        {/* Tooltip */}
+     
         <div className="relative group mb-5 text-center">
           <p className="text-xs text-slate-400 cursor-pointer">
             Need demo credentials?
@@ -84,12 +108,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Error */}
+     
         {error && (
           <p className="text-sm text-red-500 mb-4 text-center">{error}</p>
         )}
 
-        {/* Button */}
+      
         <button
           onClick={handleLogin}
           disabled={loading}
@@ -105,7 +129,7 @@ export default function LoginPage() {
           )}
         </button>
 
-        {/* Footer */}
+    
         <p className="text-sm text-slate-500 text-center mt-6">
           Don’t have an account?{" "}
           <Link

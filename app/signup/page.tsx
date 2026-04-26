@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { apiFetch } from "@/lib/api";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -11,30 +12,29 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleSignup = async () => {
-    setLoading(true);
-    setError("");
-    setSuccess("");
+const handleSignup = async () => {
+  setLoading(true);
+  setError("");
+  setSuccess("");
 
-    try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        body: JSON.stringify({ name, email, password }),
-      });
+  try {
+    await apiFetch("/users", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        role: "INTERNAL", // default role
+      }),
+    });
 
-      const data = await res.json();
+    setSuccess("Account created. You can login now.");
+  } catch (err: any) {
+    setError(err.message || "Signup failed");
+  }
 
-      if (!res.ok) {
-        setError(data.message || "Signup failed");
-      } else {
-        setSuccess("Account created. You can login now.");
-      }
-    } catch (err) {
-      setError("Something went wrong");
-    }
-
-    setLoading(false);
-  };
+  setLoading(false);
+};
 
   const Spinner = () => (
     <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -45,7 +45,7 @@ export default function SignupPage() {
       
       <div className="w-full max-w-sm p-8 bg-white/90 backdrop-blur rounded-xl shadow-md border border-slate-200">
 
-        {/* Heading */}
+    
         <div className="mb-7 text-center">
           <h2 className="text-[22px] font-medium tracking-tight text-slate-800 leading-tight">
             Create your account
@@ -55,7 +55,7 @@ export default function SignupPage() {
           </p>
         </div>
 
-        {/* Name */}
+    
         <div className="mb-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Full Name
@@ -67,7 +67,7 @@ export default function SignupPage() {
           />
         </div>
 
-        {/* Email */}
+     
         <div className="mb-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Email
@@ -79,7 +79,7 @@ export default function SignupPage() {
           />
         </div>
 
-        {/* Password + Tooltip */}
+    
         <div className="mb-5 relative group">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Password
@@ -91,13 +91,13 @@ export default function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {/* Tooltip */}
+    
           <div className="absolute right-0 -top-6 hidden group-hover:block text-xs bg-slate-800 text-white px-2 py-1 rounded shadow">
             Min 6 characters
           </div>
         </div>
 
-        {/* Error / Success */}
+    
         {error && (
           <p className="text-sm text-red-500 mb-4 text-center">{error}</p>
         )}

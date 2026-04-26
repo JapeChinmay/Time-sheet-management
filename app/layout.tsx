@@ -1,8 +1,7 @@
 "use client";
 
 import "./globals.css";
-import { SessionProvider } from "next-auth/react";
-import React from "react"; // Import React to use ReactNode
+import React from "react";
 import { Inter } from "next/font/google";
 
 const inter = Inter({
@@ -11,17 +10,14 @@ const inter = Inter({
   variable: "--font-sans",
 });
 
-
-export default function RootLayout({ 
-  children 
-}: { 
-  children: React.ReactNode 
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable} >
-      <body>
-        <SessionProvider>{children}</SessionProvider>
-      </body>
+    <html lang="en" className={inter.variable}>
+      <body>{children}</body>
     </html>
   );
 }

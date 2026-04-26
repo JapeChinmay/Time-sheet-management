@@ -1,15 +1,35 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
+"use client";
 
-export default async function Dashboard() {
-  const session = await auth();
+import { useEffect } from "react";
 
-  if (!session) redirect("/login");
+export default function DashboardRedirect() {
+  useEffect(() => {
+    const token = localStorage.getItem("token");
 
-  const role = session.user.role;
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
 
-  if (role === "HR") redirect("/hr");
-  if (role === "MANAGER") redirect("/manager");
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const role = payload.role?.toUpperCase();
 
-  redirect("/employee");
+      // 🔥 FIXED ROLE HANDLING
+      if (role === "SUPERADMIN" || role === "ADMIN") {
+        window.location.href = "/admin";
+      } else if (role === "MANAGER") {
+        window.location.href = "/manager";
+      } else if (role === "HR") {
+        window.location.href = "/hr";
+      } else {
+        window.location.href = "/employee";
+      }
+
+    } catch {
+      window.location.href = "/login";
+    }
+  }, []);
+
+  return null;
 }

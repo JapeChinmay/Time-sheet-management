@@ -32,7 +32,7 @@ export default function DashboardClient({ name }: { name: string }) {
   return (
     <div className="space-y-6">
 
-      {/* Heading */}
+  
       <div>
         <h1 className="text-2xl md:text-3xl font-medium tracking-tight text-slate-800">
           Welcome, {name}
@@ -54,7 +54,7 @@ export default function DashboardClient({ name }: { name: string }) {
         </div>
       </div>
 
-      {/* Stats */}
+   
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
         <AnimatedCard title="Hours Today" value={`${stats.todayHours}h`} alt="Focus time improving" />
@@ -63,10 +63,9 @@ export default function DashboardClient({ name }: { name: string }) {
 
       </div>
 
-      {/* Charts */}
+ 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Bar Chart */}
         <motion.div
           whileHover={{ scale: 1.02 }}
           className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm"
@@ -93,7 +92,7 @@ export default function DashboardClient({ name }: { name: string }) {
           </div>
         </motion.div>
 
-        {/* Progress */}
+      
         <motion.div
           whileHover={{ scale: 1.02 }}
           className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm"
@@ -122,7 +121,7 @@ export default function DashboardClient({ name }: { name: string }) {
   );
 }
 
-/* Animated Card */
+
 function AnimatedCard({
   title,
   value,
