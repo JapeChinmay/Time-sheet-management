@@ -143,6 +143,9 @@ export default function Timesheet() {
 
   const getUser = () => {
     try {
+    
+      
+
       const token = localStorage.getItem("token");
       return JSON.parse(atob(token!.split(".")[1]));
     } catch {
@@ -150,9 +153,20 @@ export default function Timesheet() {
     }
   };
 
+ 
+
   if (loading) {
     return <SmartLoader name={getUser().name} />;
   }
+
+    function isAdminUser(role: string) {
+  return role === "ADMIN" || role === "SUPERADMIN";
+}
+
+    const user = getUser();
+   
+const isAdmin = isAdminUser(user.role);
+  
 
   return (
     <div className="space-y-6">
@@ -253,14 +267,16 @@ export default function Timesheet() {
       {/* 🔥 ACTIONS */}
       <div className="flex gap-3 flex-wrap">
 
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 border border-slate-200 rounded-md bg-white hover:bg-slate-50 text-sm"
-        >
-          + Add Project
-        </motion.button>
+     {isAdmin && (
+  <motion.button
+    whileHover={{ scale: 1.03 }}
+    whileTap={{ scale: 0.97 }}
+    onClick={() => setShowModal(true)}
+    className="px-4 py-2 border border-slate-200 rounded-md bg-white hover:bg-slate-50 text-sm"
+  >
+    + Add Project
+  </motion.button>
+)}
 
         <motion.button
           whileHover={{ scale: 1.03 }}

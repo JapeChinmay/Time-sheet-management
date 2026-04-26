@@ -76,7 +76,7 @@ export default function AdminTimesheets() {
     0
   );
 
-  // 🔥 GROUP DATA
+
   const projectMap: Record<string, number> = {};
   const dateMap: Record<string, number> = {};
 

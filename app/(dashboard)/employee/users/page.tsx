@@ -6,46 +6,116 @@ import SmartLoader from "@/components/ui/SmartLoader";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
+type Project = {
+  id: number;
+  name: string;
+};
+
 type User = {
   id: number;
   name: string;
   email: string;
   role: string;
-
-  // 🔥 dummy enrichment (until backend supports)
-  lastActive?: string;
-  project?: string;
+  lastActive?: string | null;
+  projectId?: number | null;
+  totalHours?: number;
 };
+
+   type Timesheet = {
+  userId: number;
+  projectId: number;
+  date: string;
+  hours: number;
+};
+
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [projectsMap, setProjectsMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const router = useRouter();
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       try {
-        const data = await apiFetch("/users");
+        const [usersRes, tsRes] = await Promise.all([
+          apiFetch("/users"),
+          apiFetch("/timesheets"),
+        ]);
 
-        const list = Array.isArray(data) ? data : data.data || [];
+        const userList: User[] = Array.isArray(usersRes)
+          ? usersRes
+          : usersRes.data || [];
 
-        // 🔥 enrich users with dummy project + activity
-        const enriched = list.map((u: any, i: number) => ({
-          ...u,
-          project:
-            i % 3 === 0
-              ? "Website Redesign"
-              : i % 3 === 1
-              ? "Internal Tooling"
-              : null,
 
-          // simulate last active (0 → 10 days)
-          lastActive: new Date(
-            Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-        }));
+const tsList: Timesheet[] = Array.isArray(tsRes)
+  ? tsRes
+  : tsRes.data || [];
+        /* 🔥 GROUP TIMESHEETS BY USER */
+        const userMap: Record<number, any[]> = {};
+
+        tsList.forEach((t: any) => {
+          if (!userMap[t.userId]) userMap[t.userId] = [];
+          userMap[t.userId].push(t);
+        });
+
+        /* 🔥 UNIQUE PROJECT IDS */
+        const projectIds: number[] = [
+          ...new Set(tsList.map((t: any) => Number(t.projectId))),
+        ];
+
+        /* 🔥 FETCH PROJECT NAMES (FIXED, NO DUPLICATE) */
+        const projectResults: Project[] = await Promise.all(
+          projectIds.map((pid: number) =>
+            apiFetch(`/projects/${pid}`).then((res: any) => ({
+              id: pid,
+              name: res?.name || `Project ${pid}`,
+            }))
+          )
+        );
+
+        /* 🔥 CREATE MAP */
+        const map: Record<number, string> = Object.fromEntries(
+          projectResults.map((p) => [p.id, p.name])
+        );
+
+        setProjectsMap(map);
+
+        /* 🔥 ENRICH USERS */
+        const enriched: User[] = userList.map((u: any) => {
+          const userTs = userMap[u.id] || [];
+
+          if (userTs.length === 0) {
+            return {
+              ...u,
+              lastActive: null,
+              totalHours: 0,
+              projectId: null,
+            };
+          }
+
+          const sorted = [...userTs].sort(
+            (a, b) =>
+              new Date(b.date).getTime() -
+              new Date(a.date).getTime()
+          );
+
+          const lastEntry = sorted[0];
+
+          const totalHours = userTs.reduce(
+            (sum, t) => sum + t.hours,
+            0
+          );
+
+          return {
+            ...u,
+            lastActive: lastEntry.date,
+            projectId: lastEntry.projectId,
+            totalHours,
+          };
+        });
 
         setUsers(enriched);
 
@@ -56,7 +126,7 @@ export default function UsersPage() {
       }
     };
 
-    fetchUsers();
+    fetchData();
   }, []);
 
   const getUser = () => {
@@ -74,44 +144,41 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
 
-      {/* 🔥 HEADER */}
+      {/* HEADER */}
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">
           Users
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Monitor user activity and project engagement
+          Real activity based on timesheets
         </p>
       </div>
 
-      {/* 🔥 GRID */}
+      {/* GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
         {users.map((u, i) => {
-          const last = new Date(u.lastActive || "").getTime();
+          const last = u.lastActive
+            ? new Date(u.lastActive).getTime()
+            : 0;
+
           const diffDays =
             (Date.now() - last) / (1000 * 60 * 60 * 24);
 
-          // 🔥 color logic
-          let borderColor = "border-slate-200";
-          let badge = "bg-green-100 text-green-700";
-          let statusText = "Active";
+          let badge = "bg-slate-200 text-slate-600";
+          let statusText = "No Activity";
 
-          if (!u.project) {
-            badge = "bg-slate-200 text-slate-600";
-            statusText = "Unassigned";
-          }
-
-          if (diffDays > 2 && diffDays <= 7) {
-            borderColor = "border-yellow-300";
-            badge = "bg-yellow-100 text-yellow-700";
-            statusText = "Idle";
-          }
-
-          if (diffDays > 7) {
-            borderColor = "border-red-300";
-            badge = "bg-red-100 text-red-700";
-            statusText = "Inactive";
+          if (u.lastActive) {
+            if (diffDays <= 2) {
+              badge = "bg-green-100 text-green-700";
+              statusText = "Active";
+            } else if (diffDays <= 7) {
+              badge = "bg-yellow-100 text-yellow-700";
+              statusText = "Idle";
+            } else {
+              badge = "bg-red-100 text-red-700";
+              statusText = "Inactive";
+            }
           }
 
           return (
@@ -121,61 +188,59 @@ export default function UsersPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               whileHover={{ y: -5 }}
-              className={`relative bg-white border ${borderColor} rounded-xl p-5 shadow-sm`}
+              className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
             >
-              {/* gradient layer */}
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none rounded-xl" />
+              <div className="space-y-3">
 
-              <div className="relative space-y-3">
-
-                {/* 🔥 NAME */}
                 <div className="flex justify-between items-center">
                   <p className="font-semibold text-slate-900">
                     {u.name}
                   </p>
 
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${badge}`}
-                  >
+                  <span className={`text-xs px-2 py-1 rounded-full ${badge}`}>
                     {statusText}
                   </span>
                 </div>
 
-                {/* EMAIL */}
                 <p className="text-sm text-slate-500">
                   {u.email}
                 </p>
 
-                {/* ROLE */}
                 <p className="text-xs text-slate-400">
                   Role: {u.role}
                 </p>
 
-                {/* PROJECT */}
                 <div className="text-sm">
                   <span className="text-slate-400">
                     Active Project:
                   </span>{" "}
                   <span className="font-medium text-slate-700">
-                    {u.project || "None"}
+                    {u.projectId
+                      ? projectsMap[u.projectId]
+                      : "None"}
                   </span>
                 </div>
 
-                {/* LAST ACTIVE */}
                 <p className="text-xs text-slate-400">
                   Last Active:{" "}
-                  {new Date(u.lastActive || "").toLocaleDateString()}
+                  {u.lastActive
+                    ? new Date(u.lastActive).toLocaleDateString()
+                    : "Never"}
                 </p>
 
-                {/* ACTION */}
+                <p className="text-xs text-slate-400">
+                  Total Hours: {u.totalHours || 0}h
+                </p>
+
                 <button
                   onClick={() =>
-                    router.push(`/admin/timesheets?userId=${u.id}`)
+                    router.push(`/admin/users/${u.id}`)
                   }
                   className="text-xs text-slate-900 font-medium hover:underline mt-2"
                 >
                   View Timesheets →
                 </button>
+
               </div>
             </motion.div>
           );

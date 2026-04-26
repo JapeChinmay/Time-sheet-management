@@ -1,69 +1,132 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
+
+/* 🔥 helper */
+const normalize = (res: any) =>
+  Array.isArray(res)
+    ? res
+    : res?.data || res?.items || res?.results || [];
+
+/* 🔥 FIX: Normalize logs */
+function normalizeLogs(rawLogs: any[]) {
+  return rawLogs.map((log) => {
+    // Convert LOGIN → SESSION-like structure
+    if (log.type === "LOGIN") {
+      return {
+        type: "SESSION",
+        email: log.email,
+        loginTime: log.time,
+        loginLocation: log.location,
+        logoutTime: null,
+        logoutLocation: null,
+        duration: "Active",
+      };
+    }
+
+    return log;
+  });
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
     totalProjects: 0,
-    totalHours: 320,
-    idlePercent: 18,
+    totalHours: 0,
+    idlePercent: 0,
   });
 
-  const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [weekly, setWeekly] = useState<number[]>([0, 0, 0, 0, 0]);
 
-  const weekly = [120, 150, 180, 140, 200];
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+
+      const [usersRes, projectsRes] = await Promise.all([
+        apiFetch("/users"),
+        apiFetch("/projects"),
+      ]);
+
+      const users = normalize(usersRes);
+      const projects = normalize(projectsRes);
+
+      /* 🔥 Load + normalize logs */
+      const rawLogs = JSON.parse(
+        localStorage.getItem("userLogs") || "[]"
+      );
+
+      const normalizedLogs = normalizeLogs(rawLogs);
+      const reversedLogs = [...normalizedLogs].reverse();
+
+      setAuditLogs(reversedLogs);
+
+      /* 🔥 Metrics */
+      const totalUsers = users.length;
+      const totalProjects = projects.length;
+
+      const activeUsers = reversedLogs.filter(
+        (l) => !l.logoutTime
+      ).length;
+
+      const totalHours = reversedLogs.reduce(
+        (sum, l) =>
+          sum +
+          (typeof l.duration === "number"
+            ? l.duration
+            : 2),
+        0
+      );
+
+      const idlePercent =
+        totalUsers === 0
+          ? 0
+          : Math.round(
+              ((totalUsers - activeUsers) / totalUsers) * 100
+            );
+
+      /* 🔥 Weekly */
+      const week = [0, 0, 0, 0, 0];
+
+      reversedLogs.forEach((log) => {
+        const date = new Date(log.loginTime);
+        const day = date.getDay();
+
+        if (day >= 1 && day <= 5) {
+          week[day - 1] += 1;
+        }
+      });
+
+      setWeekly(week);
+
+      setStats({
+        totalUsers,
+        activeUsers,
+        totalProjects,
+        totalHours,
+        idlePercent,
+      });
+
+    } catch (err) {
+      console.error("Dashboard API error:", err);
+    } finally {
+      setStatsLoading(false);
+      setLogsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const usersRes = await apiFetch("/users");
-        const projectsRes = await apiFetch("/projects");
-
-        const logs =
-          JSON.parse(localStorage.getItem("userLogs") || "[]");
-
-        setAuditLogs([...logs].reverse());
-
-        const totalUsers = Array.isArray(usersRes)
-          ? usersRes.length
-          : usersRes?.total ??
-            usersRes?.count ??
-            usersRes?.data?.length ??
-            0;
-
-        const totalProjects = Array.isArray(projectsRes)
-          ? projectsRes.length
-          : projectsRes?.total ??
-            projectsRes?.count ??
-            projectsRes?.data?.length ??
-            0;
-
-        const activeUsers = Math.floor(
-          totalUsers * (0.6 + Math.random() * 0.2)
-        );
-
-        setStats((prev) => ({
-          ...prev,
-          totalUsers,
-          activeUsers,
-          totalProjects,
-        }));
-
-      } catch (err) {
-        console.error("Dashboard API error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadData();
-  }, []);
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
   const getUser = () => {
     try {
@@ -74,14 +137,16 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (statsLoading && logsLoading) {
+    return <SmartLoader name={getUser().name} />;
+  }
 
   return (
     <div className="space-y-8">
 
       {/* 🔥 HEADER */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-semibold text-slate-900 tracking-tight">
+        <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">
           Admin Overview
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -90,75 +155,11 @@ export default function AdminDashboard() {
       </div>
 
       {/* 🔥 STATS */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{
-          visible: { transition: { staggerChildren: 0.1 } },
-        }}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard title="Total Users" value={stats.totalUsers} />
         <StatCard title="Active Users" value={stats.activeUsers} />
         <StatCard title="Projects" value={stats.totalProjects} />
         <StatCard title="Hours Logged" value={`${stats.totalHours}h`} />
-      </motion.div>
-
-      {/* 🔥 CHARTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* Workload */}
-        <motion.div
-          whileHover={{ y: -3 }}
-          className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none rounded-xl" />
-
-          <p className="text-sm font-medium text-slate-700 mb-4 relative">
-            Weekly Workload
-          </p>
-
-          <div className="flex items-end gap-4 h-36 relative">
-            {weekly.map((h, i) => (
-              <motion.div
-                key={i}
-                initial={{ height: 0 }}
-                animate={{ height: `${h / 2}px` }}
-                transition={{ duration: 0.6, delay: i * 0.1 }}
-                className="flex flex-col items-center w-full"
-              >
-                <div className="w-7 rounded-md bg-gradient-to-t from-slate-900 to-slate-600" />
-                <span className="text-xs text-slate-400 mt-1">
-                  {["M", "T", "W", "T", "F"][i]}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Productivity */}
-        <motion.div
-          whileHover={{ y: -3 }}
-          className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
-        >
-          <p className="text-sm font-medium text-slate-700 mb-4">
-            Productivity Overview
-          </p>
-
-          <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${100 - stats.idlePercent}%` }}
-              transition={{ duration: 0.8 }}
-              className="bg-gradient-to-r from-slate-900 to-slate-600 h-full"
-            />
-          </div>
-
-          <div className="flex justify-between text-xs text-slate-500 mt-2">
-            <span>Productive</span>
-            <span>Idle {stats.idlePercent}%</span>
-          </div>
-        </motion.div>
       </div>
 
       {/* 🔥 AUDIT TRAIL */}
@@ -167,64 +168,78 @@ export default function AdminDashboard() {
           Audit Trail
         </p>
 
-        <div className="space-y-3 max-h-64 overflow-auto">
+        {logsLoading ? (
+          <p className="text-sm text-slate-400">Loading logs...</p>
+        ) : auditLogs.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            No activity yet
+          </p>
+        ) : (
+          <div className="space-y-3 max-h-64 overflow-auto">
 
-          <AnimatePresence>
-            {auditLogs.map((log, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="relative bg-slate-50 border rounded-lg p-4 text-sm"
-              >
-                {/* timeline dot */}
-                <div className="absolute left-[-8px] top-4 w-3 h-3 bg-slate-900 rounded-full" />
+            <AnimatePresence>
+              {auditLogs.map((log, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="relative bg-slate-50 border rounded-lg p-4 text-sm"
+                >
+                  <div className="absolute left-[-8px] top-4 w-3 h-3 bg-slate-900 rounded-full" />
 
-                <p className="font-medium text-slate-800">
-                  {log.email}
-                </p>
+                  <p className="font-medium text-slate-800">
+                    {log.email}
+                  </p>
 
-                {log.type === "SESSION" && (
                   <div className="text-xs text-slate-500 space-y-1 mt-1">
-                    <p>
-                      🟢 {new Date(log.loginTime).toLocaleString()}
-                    </p>
-                    <p>📍 {log.loginLocation}</p>
 
+                    {/* LOGIN */}
                     <p>
-                      🔴 {new Date(log.logoutTime).toLocaleString()}
+                      🟢{" "}
+                      {log.loginTime
+                        ? new Date(log.loginTime).toLocaleString()
+                        : "Unknown"}
                     </p>
-                    <p>📍 {log.logoutLocation}</p>
+                    <p>📍 {log.loginLocation || "Unknown"}</p>
 
+                    {/* LOGOUT */}
+                    {log.logoutTime ? (
+                      <>
+                        <p>
+                          🔴{" "}
+                          {new Date(log.logoutTime).toLocaleString()}
+                        </p>
+                        <p>📍 {log.logoutLocation}</p>
+                      </>
+                    ) : (
+                      <p className="text-green-600 font-medium">
+                        ● Active session
+                      </p>
+                    )}
+
+                    {/* DURATION */}
                     <p className="text-slate-400">
-                      ⏱ {log.duration}
+                      ⏱ {log.duration || "Ongoing"}
                     </p>
                   </div>
-                )}
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
-        </div>
+          </div>
+        )}
       </div>
-
     </div>
   );
 }
 
-/* 🔥 STAT CARD */
+/* 🔥 CARD */
 function StatCard({ title, value }: any) {
   return (
     <motion.div
-      variants={{
-        hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0 },
-      }}
-      whileHover={{ y: -5, scale: 1.02 }}
-      className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm overflow-hidden"
+      whileHover={{ y: -4 }}
+      className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60" />
-
       <p className="text-xs text-slate-500">{title}</p>
       <p className="text-xl font-semibold text-slate-900 mt-1">
         {value}

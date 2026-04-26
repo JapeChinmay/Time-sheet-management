@@ -109,7 +109,7 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
 
-      {/* 🔥 HEADER */}
+   
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">
           Projects
@@ -119,7 +119,7 @@ export default function ProjectsPage() {
         </p>
       </div>
 
-      {/* 🔥 GRID */}
+    
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
         {projects.map((p) => (
@@ -129,13 +129,13 @@ export default function ProjectsPage() {
             onClick={() => openProject(p.id)}
             className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm cursor-pointer overflow-hidden"
           >
-            {/* subtle gradient */}
+           
             <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none" />
 
-            {/* content */}
+           
             <div className="relative space-y-3">
 
-              {/* TITLE */}
+          
               <div className="flex justify-between items-center">
                 <p className="font-semibold text-slate-900">
                   {p.name}
@@ -144,15 +144,15 @@ export default function ProjectsPage() {
                 <StatusBadge status={p.status} />
               </div>
 
-              {/* DESCRIPTION */}
+          
               <p className="text-sm text-slate-500 line-clamp-2">
                 {p.description || "No description provided"}
               </p>
 
-              {/* TEAM */}
+           
               <div className="flex items-center justify-between pt-2">
 
-                {/* avatars */}
+              
                 <div className="flex -space-x-2">
                   {p.team?.slice(0, 3).map((t, i) => (
                     <div
@@ -170,7 +170,7 @@ export default function ProjectsPage() {
                   )}
                 </div>
 
-                {/* lead */}
+            
                 <p className="text-xs text-slate-400">
                   Lead: {p.lead || "—"}
                 </p>
@@ -181,7 +181,7 @@ export default function ProjectsPage() {
         ))}
       </div>
 
-      {/* 🔥 MODAL */}
+   
       <AnimatePresence>
         {selected && (
           <motion.div
@@ -262,7 +262,7 @@ export default function ProjectsPage() {
   );
 }
 
-/* 🔥 STATUS */
+
 function StatusBadge({ status }: { status: string }) {
   const base =
     "text-xs px-2 py-1 rounded-full font-medium";
