@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function DashboardLayout({
   children,
@@ -9,6 +10,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [role, setRole] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -21,48 +23,70 @@ export default function DashboardLayout({
     }
   }, []);
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    sessionStorage.clear();
+
+  
+
+    router.push("/login");
+  };
+
   return (
     <div className="flex min-h-screen">
 
-      {/* Sidebar */}
-      <div className="w-64 bg-slate-900 text-white p-5">
-        <h2 className="text-base font-semibold mb-6">ChronoTrack</h2>
+    
+      <div className="w-64 bg-slate-900 text-white p-5 flex flex-col justify-between">
 
-        <nav className="space-y-2 text-sm">
+        <div>
+          <h2 className="text-base font-semibold mb-6">ChronoTrack</h2>
 
-          <Link href="/employee" className="block text-slate-300 hover:text-white">
-            Dashboard
-          </Link>
+          <nav className="space-y-2 text-sm">
 
-          <Link href="/employee/timesheet" className="block text-slate-300 hover:text-white">
-            Timesheet
-          </Link>
+            <Link href="/employee" className="block text-slate-300 hover:text-white">
+              Dashboard
+            </Link>
 
-          <Link href="/employee/projects" className="block text-slate-300 hover:text-white">
-            Projects
-          </Link>
+            <Link href="/employee/timesheet" className="block text-slate-300 hover:text-white">
+              Timesheet
+            </Link>
 
-        
-          {(role === "ADMIN" || role === "SUPERADMIN") && (
-            <>
-              <div className="border-t border-slate-700 my-3" />
+            <Link href="/employee/projects" className="block text-slate-300 hover:text-white">
+              Projects
+            </Link>
 
-              <p className="text-xs text-slate-400 uppercase">Admin</p>
+          
+            {(role === "ADMIN" || role === "SUPERADMIN") && (
+              <>
+                <div className="border-t border-slate-700 my-3" />
 
-              <Link href="/admin" className="block text-slate-300 hover:text-white">
-                Admin Overview
-              </Link>
+                <p className="text-xs text-slate-400 uppercase">Admin</p>
 
-              <Link href="/employee/users" className="block text-slate-300 hover:text-white">
-                Users
-              </Link>
-            </>
-          )}
+                <Link href="/admin" className="block text-slate-300 hover:text-white">
+                  Admin Overview
+                </Link>
 
-        </nav>
+                <Link href="/employee/users" className="block text-slate-300 hover:text-white">
+                  Users
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
+
+     
+        <div className="pt-6 border-t border-slate-700">
+          <button
+            onClick={handleLogout}
+            className="w-full text-left text-sm text-red-400 hover:text-red-300 transition"
+          >
+            Logout
+          </button>
+        </div>
+
       </div>
 
- 
+  \
       <div className="flex-1 bg-slate-50 p-6">
         {children}
       </div>
