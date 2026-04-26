@@ -39,7 +39,7 @@ export default function DashboardLayout({
       <div className="w-64 bg-slate-900 text-white p-5 flex flex-col justify-between">
 
         <div>
-          <h2 className="text-base font-semibold mb-6">ChronoTrack</h2>
+          <h2 className="text-base font-semibold mb-6">WorkPulse</h2>
 
           <nav className="space-y-2 text-sm">
 
