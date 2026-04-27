@@ -53,7 +53,7 @@ export default function UsersPage() {
 const tsList: Timesheet[] = Array.isArray(tsRes)
   ? tsRes
   : tsRes.data || [];
-        /* 🔥 GROUP TIMESHEETS BY USER */
+     
         const userMap: Record<number, any[]> = {};
 
         tsList.forEach((t: any) => {
@@ -61,12 +61,12 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
           userMap[t.userId].push(t);
         });
 
-        /* 🔥 UNIQUE PROJECT IDS */
+    
         const projectIds: number[] = [
           ...new Set(tsList.map((t: any) => Number(t.projectId))),
         ];
 
-        /* 🔥 FETCH PROJECT NAMES (FIXED, NO DUPLICATE) */
+      
         const projectResults: Project[] = await Promise.all(
           projectIds.map((pid: number) =>
             apiFetch(`/projects/${pid}`).then((res: any) => ({
@@ -76,14 +76,14 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
           )
         );
 
-        /* 🔥 CREATE MAP */
+      
         const map: Record<number, string> = Object.fromEntries(
           projectResults.map((p) => [p.id, p.name])
         );
 
         setProjectsMap(map);
 
-        /* 🔥 ENRICH USERS */
+     
         const enriched: User[] = userList.map((u: any) => {
           const userTs = userMap[u.id] || [];
 
@@ -144,7 +144,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
   return (
     <div className="space-y-6">
 
-      {/* HEADER */}
+    
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">
           Users
@@ -154,7 +154,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
         </p>
       </div>
 
-      {/* GRID */}
+   
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
         {users.map((u, i) => {

@@ -15,7 +15,7 @@ export default function DashboardRedirect() {
       const payload = JSON.parse(atob(token.split(".")[1]));
       const role = payload.role?.toUpperCase();
 
-      // 🔥 FIXED ROLE HANDLING
+  
       if (role === "SUPERADMIN" || role === "ADMIN") {
         window.location.href = "/admin";
       } else if (role === "MANAGER") {

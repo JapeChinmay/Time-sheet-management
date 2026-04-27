@@ -5,30 +5,90 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
 
-/* 🔥 helper */
+type Log = {
+  name: string;
+  loginTime: string;
+  loginLocation: string;
+  browser: string;
+  system: string;
+};
+
 const normalize = (res: any) =>
   Array.isArray(res)
     ? res
-    : res?.data || res?.items || res?.results || [];
+    : res?.data || res?.items || res?.results || res?.response || [];
 
-/* 🔥 FIX: Normalize logs */
-function normalizeLogs(rawLogs: any[]) {
-  return rawLogs.map((log) => {
-    // Convert LOGIN → SESSION-like structure
-    if (log.type === "LOGIN") {
+/* 🔥 CACHE (CRITICAL) */
+const locationCache = new Map<string, string>();
+
+async function getReadableLocation(lat: number, lng: number) {
+  const key = `${lat},${lng}`;
+
+  if (locationCache.has(key)) {
+    return locationCache.get(key)!;
+  }
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      {
+        headers: {
+          "User-Agent": "timesheet-app",
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    const address = data.address || {};
+
+    const city =
+      address.city ||
+      address.town ||
+      address.village ||
+      "";
+
+    const state = address.state || "";
+    const country = address.country || "";
+
+    const location =
+      [city, state, country].filter(Boolean).join(", ") ||
+      "Unknown";
+
+    locationCache.set(key, location);
+
+    return location;
+
+  } catch {
+    return "Unknown";
+  }
+}
+
+/* 🔥 ASYNC NORMALIZATION */
+async function normalizeLogs(rawLogs: any[]): Promise<Log[]> {
+  return Promise.all(
+    rawLogs.map(async (log) => {
+      let location = "Unknown";
+
+      if (
+        log.location?.latitude &&
+        log.location?.longitude
+      ) {
+        location = await getReadableLocation(
+          log.location.latitude,
+          log.location.longitude
+        );
+      }
+
       return {
-        type: "SESSION",
-        email: log.email,
-        loginTime: log.time,
-        loginLocation: log.location,
-        logoutTime: null,
-        logoutLocation: null,
-        duration: "Active",
+        name: log.user?.name || log.user?.email || "Unknown",
+        loginTime: log.timestamp,
+        loginLocation: location,
+        browser: log.browser || "Unknown",
+        system: log.system || "Unknown",
       };
-    }
-
-    return log;
-  });
+    })
+  );
 }
 
 export default function AdminDashboard() {
@@ -40,50 +100,43 @@ export default function AdminDashboard() {
     idlePercent: 0,
   });
 
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [weekly, setWeekly] = useState<number[]>([0, 0, 0, 0, 0]);
-
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [auditLogs, setAuditLogs] = useState<Log[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
       setStatsLoading(true);
+      setLogsLoading(true);
 
-      const [usersRes, projectsRes] = await Promise.all([
+      const [usersRes, projectsRes, logsRes] = await Promise.all([
         apiFetch("/users"),
         apiFetch("/projects"),
+        apiFetch("/user-logs?join=user"), // 🔥 FIXED
       ]);
 
       const users = normalize(usersRes);
       const projects = normalize(projectsRes);
 
-      /* 🔥 Load + normalize logs */
-      const rawLogs = JSON.parse(
-        localStorage.getItem("userLogs") || "[]"
+      let rawLogs = normalize(logsRes);
+
+      /* 🔥 SORT LATEST FIRST */
+      rawLogs.sort(
+        (a: any, b: any) =>
+          new Date(b.timestamp).getTime() -
+          new Date(a.timestamp).getTime()
       );
 
-      const normalizedLogs = normalizeLogs(rawLogs);
-      const reversedLogs = [...normalizedLogs].reverse();
+      /* 🔥 IMPORTANT: AWAIT */
+      const logs = await normalizeLogs(rawLogs);
 
-      setAuditLogs(reversedLogs);
+      setAuditLogs(logs);
 
-      /* 🔥 Metrics */
       const totalUsers = users.length;
       const totalProjects = projects.length;
 
-      const activeUsers = reversedLogs.filter(
-        (l) => !l.logoutTime
-      ).length;
-
-      const totalHours = reversedLogs.reduce(
-        (sum, l) =>
-          sum +
-          (typeof l.duration === "number"
-            ? l.duration
-            : 2),
-        0
-      );
+      const activeUsers = logs.length;
+      const totalHours = logs.length * 2;
 
       const idlePercent =
         totalUsers === 0
@@ -91,20 +144,6 @@ export default function AdminDashboard() {
           : Math.round(
               ((totalUsers - activeUsers) / totalUsers) * 100
             );
-
-      /* 🔥 Weekly */
-      const week = [0, 0, 0, 0, 0];
-
-      reversedLogs.forEach((log) => {
-        const date = new Date(log.loginTime);
-        const day = date.getDay();
-
-        if (day >= 1 && day <= 5) {
-          week[day - 1] += 1;
-        }
-      });
-
-      setWeekly(week);
 
       setStats({
         totalUsers,
@@ -115,7 +154,7 @@ export default function AdminDashboard() {
       });
 
     } catch (err) {
-      console.error("Dashboard API error:", err);
+      console.error("Dashboard error:", err);
     } finally {
       setStatsLoading(false);
       setLogsLoading(false);
@@ -124,8 +163,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 10000);
-    return () => clearInterval(interval);
   }, [loadData]);
 
   const getUser = () => {
@@ -144,38 +181,46 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8">
 
-      {/* 🔥 HEADER */}
+      {/* HEADER */}
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">
           Admin Overview
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          System-wide analytics and activity insights
+          Real-time system activity & audit insights
         </p>
       </div>
 
-      {/* 🔥 STATS */}
+      {/* STATS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard title="Total Users" value={stats.totalUsers} />
-        <StatCard title="Active Users" value={stats.activeUsers} />
+        <StatCard title="Active Logs" value={stats.activeUsers} />
         <StatCard title="Projects" value={stats.totalProjects} />
-        <StatCard title="Hours Logged" value={`${stats.totalHours}h`} />
+        <StatCard title="Activity Units" value={stats.totalHours} />
       </div>
 
-      {/* 🔥 AUDIT TRAIL */}
+      {/* AUDIT TRAIL */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        <p className="text-sm font-medium text-slate-700 mb-4">
-          Audit Trail
-        </p>
+
+        <div className="flex justify-between items-center mb-4">
+          <p className="text-sm font-medium text-slate-700">
+            Audit Trail
+          </p>
+          <span className="text-xs text-slate-400">
+            Geo enriched logs
+          </span>
+        </div>
 
         {logsLoading ? (
           <p className="text-sm text-slate-400">Loading logs...</p>
         ) : auditLogs.length === 0 ? (
           <p className="text-sm text-slate-400">
-            No activity yet
+            No activity found
           </p>
         ) : (
-          <div className="space-y-3 max-h-64 overflow-auto">
+          <div className="relative pl-6 space-y-4 max-h-72 overflow-auto">
+
+            <div className="absolute left-2 top-0 bottom-0 w-[2px] bg-slate-200" />
 
             <AnimatePresence>
               {auditLogs.map((log, i) => (
@@ -185,42 +230,29 @@ export default function AdminDashboard() {
                   animate={{ opacity: 1, x: 0 }}
                   className="relative bg-slate-50 border rounded-lg p-4 text-sm"
                 >
-                  <div className="absolute left-[-8px] top-4 w-3 h-3 bg-slate-900 rounded-full" />
+                  <div className="absolute left-[-14px] top-5 w-3 h-3 bg-slate-900 rounded-full" />
 
                   <p className="font-medium text-slate-800">
-                    {log.email}
+                    {log.name}
                   </p>
 
-                  <div className="text-xs text-slate-500 space-y-1 mt-1">
+                  <div className="mt-2 space-y-1 text-xs text-slate-500">
 
-                    {/* LOGIN */}
                     <p>
-                      🟢{" "}
-                      {log.loginTime
-                        ? new Date(log.loginTime).toLocaleString()
-                        : "Unknown"}
+                      🕒 {new Date(log.loginTime).toLocaleString()}
                     </p>
-                    <p>📍 {log.loginLocation || "Unknown"}</p>
 
-                    {/* LOGOUT */}
-                    {log.logoutTime ? (
-                      <>
-                        <p>
-                          🔴{" "}
-                          {new Date(log.logoutTime).toLocaleString()}
-                        </p>
-                        <p>📍 {log.logoutLocation}</p>
-                      </>
-                    ) : (
-                      <p className="text-green-600 font-medium">
-                        ● Active session
-                      </p>
-                    )}
+                    <p>📍 {log.loginLocation}</p>
 
-                    {/* DURATION */}
-                    <p className="text-slate-400">
-                      ⏱ {log.duration || "Ongoing"}
+                    <div className="flex gap-3 text-[11px] text-slate-400">
+                      <span>🌐 {log.browser}</span>
+                      <span>💻 {log.system}</span>
+                    </div>
+
+                    <p className="text-green-600 font-medium">
+                      ● Login Event
                     </p>
+
                   </div>
                 </motion.div>
               ))}
@@ -233,7 +265,6 @@ export default function AdminDashboard() {
   );
 }
 
-/* 🔥 CARD */
 function StatCard({ title, value }: any) {
   return (
     <motion.div

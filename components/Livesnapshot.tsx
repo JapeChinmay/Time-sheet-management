@@ -40,7 +40,7 @@ export function LiveSnapshot() {
 
       <div className="space-y-4">
 
-        {/* 🔥 Stats */}
+    
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-slate-500">Users</p>
@@ -71,7 +71,6 @@ export function LiveSnapshot() {
           </div>
         </div>
 
-        {/* 🔥 Productivity Bar (same as admin) */}
         <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}

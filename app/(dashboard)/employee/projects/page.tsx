@@ -11,7 +11,7 @@ type Project = {
   description?: string;
   status: "ACTIVE" | "INACTIVE";
 
-  // 🔥 future ready
+
   team?: { name: string }[];
   lead?: string;
 };
@@ -34,7 +34,6 @@ export default function ProjectsPage() {
       const res = await apiFetch("/projects");
       const list = Array.isArray(res) ? res : res.data || [];
 
-      // 🔥 inject dummy team for UI (until backend ready)
       const enhanced = list.map((p: any) => ({
         ...p,
         team: [

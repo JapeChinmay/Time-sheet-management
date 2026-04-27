@@ -1,75 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
-/* 🔥 Convert lat/lng → DMS */
-function toDMS(value: number, isLat: boolean) {
-  const abs = Math.abs(value);
-  const degrees = Math.floor(abs);
-  const minutes = Math.floor((abs - degrees) * 60);
-  const seconds = (((abs - degrees) * 60 - minutes) * 60).toFixed(1);
-
-  const direction = isLat
-    ? value >= 0 ? "N" : "S"
-    : value >= 0 ? "E" : "W";
-
-  return `${degrees}°${minutes}'${seconds}"${direction}`;
-}
-
-
-async function sendAuditLog(userId: number) {
-  const sendPayload = async (location: string) => {
-    const userAgent = navigator.userAgent;
-
-    let browser = "Unknown";
-    if (userAgent.includes("Chrome")) browser = "Chrome";
-    else if (userAgent.includes("Firefox")) browser = "Firefox";
-    else if (userAgent.includes("Safari")) browser = "Safari";
-
-    const platform = navigator.platform;
-
-    const payload = {
-      userId,
-      eventType: "LOGIN",
-      loggedInAt: new Date().toISOString(),
-      location,
-      platform,
-      browser,
-    };
-
-    try {
-      await apiFetch("/audit/log", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      console.error("Audit log failed", err);
-    }
-  };
-
-  if (!navigator.geolocation) {
-    sendPayload("Unavailable");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const { latitude, longitude } = position.coords;
-
-      const latDMS = toDMS(latitude, true);
-      const lngDMS = toDMS(longitude, false);
-
-      const locationString = `${latDMS} ${lngDMS}`;
-
-      sendPayload(locationString);
-    },
-    () => {
-      sendPayload("Permission denied");
-    }
-  );
+function getBrowser(userAgent: string) {
+  if (userAgent.includes("Chrome")) return "Chrome";
+  if (userAgent.includes("Firefox")) return "Firefox";
+  if (userAgent.includes("Safari")) return "Safari";
+  return "Unknown";
 }
 
 export default function LoginPage() {
@@ -85,9 +24,46 @@ export default function LoginPage() {
     setError("");
 
     try {
+      const userAgent = navigator.userAgent;
+      const browser = getBrowser(userAgent);
+      const system = navigator.platform;
+
+      const getLocation = () =>
+        new Promise<{ latitude: number; longitude: number }>(
+          (resolve) => {
+            if (!navigator.geolocation) {
+              resolve({ latitude: 0, longitude: 0 });
+              return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                resolve({
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                });
+              },
+              () => {
+                resolve({ latitude: 0, longitude: 0 });
+              }
+            );
+          }
+        );
+
+      const { latitude, longitude } = await getLocation();
+
+      const payload = {
+        email,
+        password,
+        latitude,
+        longitude,
+        browser,
+        system,
+      };
+
       const data = await apiFetch("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(payload),
       });
 
       const token =
@@ -97,15 +73,9 @@ export default function LoginPage() {
 
       localStorage.setItem("token", token);
 
-      /* 🔥 Extract userId from JWT */
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const userId = payload.userId;
-      const role = payload.role;
+      const decoded = JSON.parse(atob(token.split(".")[1]));
+      const role = decoded.role;
 
-      /* 🔥 Send audit log */
-      sendAuditLog(userId);
-
-      /* 🔥 Redirect */
       if (role === "ADMIN" || role === "SUPERADMIN") {
         router.push("/admin");
       } else {
@@ -125,7 +95,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-white via-slate-50 to-slate-100">
-      
+
       <div className="w-full max-w-sm p-8 bg-white/90 backdrop-blur rounded-xl shadow-md border border-slate-200">
 
         <div className="mb-7 text-center">
@@ -137,7 +107,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* EMAIL */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Email
@@ -149,7 +118,6 @@ export default function LoginPage() {
           />
         </div>
 
-        {/* PASSWORD */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Password
@@ -162,14 +130,12 @@ export default function LoginPage() {
           />
         </div>
 
-        {/* ERROR */}
         {error && (
           <p className="text-sm text-red-500 mb-4 text-center">
             {error}
           </p>
         )}
 
-        {/* BUTTON */}
         <button
           onClick={handleLogin}
           disabled={loading}
@@ -185,16 +151,6 @@ export default function LoginPage() {
           )}
         </button>
 
-        {/* FOOTER */}
-        <p className="text-sm text-slate-500 text-center mt-6">
-          Don’t have an account?{" "}
-          <Link
-            href="/signup"
-            className="text-slate-800 font-medium hover:underline"
-          >
-            Sign up
-          </Link>
-        </p>
       </div>
     </div>
   );

@@ -49,13 +49,13 @@ export default function DashboardClient({ name }: { name: string }) {
   return (
     <div className="space-y-8">
 
-      {/* 🔥 HEADER */}
+  
       <div className="space-y-2">
      <h1 className="text-2xl md:text-3xl font-semibold text-slate-900 tracking-tight">
   {getGreeting(loginInfo?.time)}, {name}
 </h1>
 
-        {/* 🔥 login card */}
+     
         {loginInfo && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -97,7 +97,7 @@ export default function DashboardClient({ name }: { name: string }) {
         </div>
       </div>
 
-      {/* 🔥 STATS GRID */}
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <AnimatedCard
           title="Hours Today"
@@ -116,7 +116,7 @@ export default function DashboardClient({ name }: { name: string }) {
         />
       </div>
 
-      {/* 🔥 ANALYTICS */}
+  
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* 📊 Weekly Activity */}
@@ -146,7 +146,7 @@ export default function DashboardClient({ name }: { name: string }) {
           </div>
         </motion.div>
 
-        {/* ⚡ Productivity */}
+     
         <motion.div
           whileHover={{ y: -3 }}
           className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
@@ -175,7 +175,7 @@ export default function DashboardClient({ name }: { name: string }) {
   );
 }
 
-/* 🔥 PREMIUM CARD */
+
 function AnimatedCard({
   title,
   value,
@@ -200,7 +200,7 @@ function AnimatedCard({
       transition={{ type: "spring", stiffness: 180 }}
       className="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm overflow-hidden"
     >
-      {/* subtle gradient glow */}
+    
       <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none" />
 
       <p className="text-xs text-slate-500">{title}</p>
