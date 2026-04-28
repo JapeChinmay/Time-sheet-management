@@ -15,6 +15,8 @@ import {
   LogOut,
   Menu,
   X,
+  ListTodo,
+  ScrollText,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -95,6 +97,13 @@ export default function DashboardLayout({
             active={isActive("/employee/projects")}
           />
 
+          <SidebarItem
+            icon={<ListTodo size={16} />}
+            label="Tasks"
+            href="/employee/tasks"
+            active={pathname.startsWith("/employee/tasks")}
+          />
+
           {(role === "ADMIN" || role === "SUPERADMIN") && (
             <>
               <div className="border-t border-slate-200 my-3" />
@@ -115,6 +124,13 @@ export default function DashboardLayout({
                 label="Users"
                 href="/employee/users"
                 active={isActive("/employee/users")}
+              />
+
+              <SidebarItem
+                icon={<ScrollText size={16} />}
+                label="Activity Logs"
+                href="/admin/audit-logs"
+                active={pathname.startsWith("/admin/audit-logs")}
               />
             </>
           )}

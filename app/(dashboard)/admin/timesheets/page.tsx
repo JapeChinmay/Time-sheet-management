@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import SmartLoader from "@/components/ui/SmartLoader";
+import Combobox from "@/components/ui/Combobox";
 import { motion } from "framer-motion";
 
 import {
@@ -132,19 +133,18 @@ export default function AdminTimesheets() {
 
      
       <div className="flex gap-3 items-center">
-        <span>Select User:</span>
-        <select
+        <span className="text-sm text-slate-600">Select User:</span>
+        <Combobox
           value={selectedUser}
-          onChange={(e) => handleUserChange(e.target.value)}
-          className="border px-3 py-2 rounded"
-        >
-          <option value="">All Users</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
+          onChange={handleUserChange}
+          placeholder="All Users"
+          searchable
+          className="w-64"
+          options={[
+            { value: "", label: "All Users" },
+            ...users.map((u: any) => ({ value: String(u.id), label: u.name })),
+          ]}
+        />
       </div>
 
       {/* STATS */}

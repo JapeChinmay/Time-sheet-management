@@ -187,8 +187,9 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              whileHover={{ y: -5 }}
-              className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
+              whileHover={{ y: -5, boxShadow: "0 4px 20px rgba(0,0,0,0.07)" }}
+              onClick={() => router.push(`/admin/users/${u.id}`)}
+              className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm cursor-pointer"
             >
               <div className="space-y-3">
 
@@ -232,14 +233,9 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                   Total Hours: {u.totalHours || 0}h
                 </p>
 
-                <button
-                  onClick={() =>
-                    router.push(`/admin/users/${u.id}`)
-                  }
-                  className="text-xs text-slate-900 font-medium hover:underline mt-2"
-                >
-                  View Timesheets →
-                </button>
+                <p className="text-xs text-indigo-600 font-medium mt-2">
+                  View analytics →
+                </p>
 
               </div>
             </motion.div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, UserCheck, UserX, Briefcase, Clock, TrendingUp,
@@ -72,7 +73,15 @@ async function resolveLocation(lat: number, lng: number): Promise<string> {
       { headers: { "User-Agent": "timesheet-app" } }
     );
     const d = await r.json();
-    const loc = d.address?.city || d.address?.town || d.address?.state || d.display_name || "Unknown";
+    const a = d.address ?? {};
+    const parts = [
+      a.road,
+      a.neighbourhood || a.suburb,
+      a.city || a.town || a.village,
+      a.state,
+      a.country,
+    ].filter(Boolean);
+    const loc = parts.length > 0 ? parts.join(", ") : d.display_name || "Unknown";
     locationCache.set(key, loc);
     return loc;
   } catch { return "Unknown"; }
@@ -86,6 +95,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
@@ -220,7 +230,9 @@ export default function AdminDashboard() {
                   key={u.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="px-5 py-3.5 flex items-center gap-3"
+                  whileHover={{ backgroundColor: "#f8fafc" }}
+                  onClick={() => router.push(`/admin/users/${u.id}`)}
+                  className="px-5 py-3.5 flex items-center gap-3 cursor-pointer"
                 >
                   {/* Avatar */}
                   <div className="w-8 h-8 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center font-semibold flex-shrink-0">
@@ -248,7 +260,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Idle badge */}
+                  {/* Idle badge + chevron */}
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${idleColor(idle)}`}>
                       {idle === 0 ? "On track" : `${idle}% idle`}
@@ -259,6 +271,7 @@ export default function AdminDashboard() {
                       </p>
                     )}
                   </div>
+                  <ChevronRight size={14} className="text-slate-300 flex-shrink-0" />
                 </motion.div>
               );
             })}
@@ -270,7 +283,11 @@ export default function AdminDashboard() {
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Inactive</p>
                 </div>
                 {inactiveUsers.map((u) => (
-                  <div key={u.id} className="px-5 py-3 flex items-center gap-3 opacity-50">
+                  <div
+                    key={u.id}
+                    onClick={() => router.push(`/admin/users/${u.id}`)}
+                    className="px-5 py-3 flex items-center gap-3 opacity-50 cursor-pointer hover:bg-slate-50"
+                  >
                     <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 text-xs flex items-center justify-center font-semibold flex-shrink-0">
                       {u.name[0].toUpperCase()}
                     </div>
@@ -279,6 +296,7 @@ export default function AdminDashboard() {
                       <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
                     </div>
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">Inactive</span>
+                    <ChevronRight size={14} className="text-slate-300 flex-shrink-0" />
                   </div>
                 ))}
               </>
@@ -380,10 +398,11 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900">{log.user?.name ?? log.user?.email ?? "Unknown"}</p>
+                    <p className="flex items-start gap-1 text-[11px] text-slate-400 mt-0.5">
+                      <MapPin size={10} className="mt-0.5 flex-shrink-0" />
+                      <span>{log.locationName}</span>
+                    </p>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                        <MapPin size={10} /> {log.locationName}
-                      </span>
                       {log.browser && (
                         <span className="flex items-center gap-1 text-[11px] text-slate-400">
                           <Globe size={10} /> {log.browser}
