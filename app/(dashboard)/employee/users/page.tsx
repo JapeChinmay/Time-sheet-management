@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
+import { parseUTC } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
@@ -159,7 +160,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
 
         {users.map((u, i) => {
           const last = u.lastActive
-            ? new Date(u.lastActive).getTime()
+            ? parseUTC(u.lastActive).getTime()
             : 0;
 
           const diffDays =
@@ -225,7 +226,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                 <p className="text-xs text-slate-400">
                   Last Active:{" "}
                   {u.lastActive
-                    ? new Date(u.lastActive).toLocaleDateString()
+                    ? parseUTC(u.lastActive).toLocaleDateString()
                     : "Never"}
                 </p>
 

@@ -7,10 +7,10 @@ import {
   ListTodo, CheckCircle2, Circle, Folder, Users,
   Calendar, Search, X, ChevronRight, Plus, Loader2,
 } from "lucide-react";
-import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
 import Combobox from "@/components/ui/Combobox";
+import { parseUTC, fmtDate } from "@/lib/date";
 
 type Assignee = { id: number; name: string; email: string; role: string; designation?: string };
 type Task = {
@@ -315,7 +315,7 @@ export default function TasksPage() {
 
                       <span className="flex items-center gap-1 text-xs text-slate-400">
                         <Calendar size={11} />
-                        {format(new Date(task.createdAt), "dd MMM yyyy")}
+                        {fmtDate(parseUTC(task.createdAt))}
                       </span>
                     </div>
                   </div>

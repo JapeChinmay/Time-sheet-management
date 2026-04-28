@@ -11,6 +11,7 @@ import {
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
+import { parseUTC, fmtDate } from "@/lib/date";
 
 type UserOption = { id: number; name: string; email: string; role: string; designation?: string };
 type Member = UserOption;
@@ -180,7 +181,7 @@ export default function ProjectDetailPage() {
         <InfoCard icon={<Clock size={16} />}     label="Total Hours" value={`${totalHours}h`} />
         <InfoCard icon={<Users size={16} />}     label="Members"     value={String(project.members?.length ?? 0)} />
         <InfoCard icon={<Briefcase size={16} />} label="Timesheets"  value={String(timesheets.length)} />
-        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? format(new Date(project.createdAt), "MMM d, yyyy") : "—"} />
+        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDate(parseUTC(project.createdAt)) : "—"} />
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">

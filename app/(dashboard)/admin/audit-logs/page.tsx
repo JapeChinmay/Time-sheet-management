@@ -6,11 +6,12 @@ import {
   ScrollText, Clock, Folder, ListTodo,
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight, SlidersHorizontal, X,
 } from "lucide-react";
-import { formatDistanceToNow, addDays, format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
 import Combobox from "@/components/ui/Combobox";
+import { parseUTC, fmtDateTime, timeAgo } from "@/lib/date";
 
 type AuditEntity = "TIMESHEET" | "PROJECT" | "TASK";
 type AuditAction = "CREATE" | "UPDATE" | "DELETE";
@@ -80,27 +81,6 @@ const ROLE_COLORS: Record<string, string> = {
 function getUser() {
   try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
   catch { return { name: "Admin" }; }
-}
-
-/** TypeORM returns timestamps without a timezone suffix.
- *  Appending "Z" forces the browser to parse them as UTC so that
- *  local-time display and "X ago" are both correct. */
-function parseDate(s: string): Date {
-  return new Date(s.endsWith("Z") || s.includes("+") ? s : s + "Z");
-}
-
-/** Format an absolute timestamp in the browser's local timezone and locale.
- *  e.g. Indian users see "28 Apr 2026, 10:01 IST" automatically. */
-function fmtLocal(d: Date): string {
-  return d.toLocaleString(undefined, {
-    day:          "2-digit",
-    month:        "short",
-    year:         "numeric",
-    hour:         "2-digit",
-    minute:       "2-digit",
-    hour12:       false,
-    timeZoneName: "short",   // appends "IST", "EDT", "UTC", etc.
-  });
 }
 
 function activeFilterCount(f: Filters) {
@@ -399,10 +379,10 @@ export default function AuditLogsPage() {
                   {/* Timestamp — relative + absolute in browser local timezone */}
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-slate-500">
-                      {formatDistanceToNow(parseDate(log.createdAt), { addSuffix: true })}
+                      {timeAgo(parseUTC(log.createdAt))}
                     </p>
                     <p className="text-[11px] text-slate-400">
-                      {fmtLocal(parseDate(log.createdAt))}
+                      {fmtDateTime(parseUTC(log.createdAt))}
                     </p>
                   </div>
                 </motion.div>

@@ -13,6 +13,7 @@ import {
 } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
+import { parseUTC } from "@/lib/date";
 
 /* ─── types ─── */
 type UserDetail = {
@@ -346,8 +347,8 @@ export default function UserDetailPage() {
             {logs.map((l, i) => (
               <div key={l.id ?? i} className="px-5 py-3 flex items-center gap-4">
                 <div className="flex-shrink-0 text-center w-10">
-                  <p className="text-base font-bold text-slate-900 leading-none">{format(new Date(l.timestamp), "d")}</p>
-                  <p className="text-[10px] text-slate-400">{format(new Date(l.timestamp), "MMM")}</p>
+                  <p className="text-base font-bold text-slate-900 leading-none">{format(parseUTC(l.timestamp), "d")}</p>
+                  <p className="text-[10px] text-slate-400">{format(parseUTC(l.timestamp), "MMM")}</p>
                 </div>
                 <div className="flex-1 flex flex-wrap gap-x-4 gap-y-0.5">
                   {l.browser && (
@@ -361,7 +362,7 @@ export default function UserDetailPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400 flex-shrink-0">{format(new Date(l.timestamp), "HH:mm")}</p>
+                <p className="text-[11px] text-slate-400 flex-shrink-0">{format(parseUTC(l.timestamp), "HH:mm")}</p>
               </div>
             ))}
           </div>

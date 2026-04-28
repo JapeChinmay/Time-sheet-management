@@ -10,6 +10,7 @@ import {
 import { format, startOfWeek, addDays, getDay, isAfter } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
+import { parseUTC } from "@/lib/date";
 
 /* ─── types ─── */
 type User = { id: number; name: string; email: string; role: string; status: string; designation?: string };
@@ -267,7 +268,7 @@ export default function AdminDashboard() {
                     </span>
                     {lastLogin && (
                       <p className="text-[10px] text-slate-400">
-                        {format(new Date(lastLogin), "MMM d, HH:mm")}
+                        {format(parseUTC(lastLogin), "MMM d, HH:mm")}
                       </p>
                     )}
                   </div>
@@ -416,8 +417,8 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-400 flex-shrink-0 text-right">
-                    {format(new Date(log.timestamp), "MMM d")}<br />
-                    {format(new Date(log.timestamp), "HH:mm")}
+                    {format(parseUTC(log.timestamp), "MMM d")}<br />
+                    {format(parseUTC(log.timestamp), "HH:mm")}
                   </p>
                 </motion.div>
               ))}
