@@ -1,38 +1,71 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Folder, Calendar, Building2, MapPin } from "lucide-react";
+import {
+  Plus, X, Folder, Calendar, Building2, MapPin,
+  Search, Users, Briefcase, Clock3,
+} from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
 import Combobox from "@/components/ui/Combobox";
 
+/* ─── types ─── */
+type Member = {
+  id: number;
+  name: string;
+  email?: string;
+  role?: string;
+  designation?: string;
+};
+
 type Project = {
   id: number;
   name: string;
-  description?: string;
+  description?: string | null;
   status: "ACTIVE" | "INACTIVE";
   clientName?: string | null;
   sourceCompany?: string | null;
   projectType?: string | null;
   shiftType?: string | null;
+  shiftStartTime?: string | null;
+  shiftEndTime?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   location?: string | null;
-  members?: { name: string }[];
-  projectManager?: { name: string };
+  members?: Member[];
+  projectManager?: { id: number; name: string; designation?: string } | null;
 };
 
-const PROJECT_TYPES = ["FIXED", "TIME_AND_MATERIAL", "RETAINER", "INTERNAL"] as const;
-const SHIFT_TYPES   = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
+/* ─── Deterministic card colour palette (full Tailwind strings — never dynamic) ─── */
+const CARD_PALETTE = [
+  { bg: "bg-indigo-50",  border: "border-indigo-200",  icon: "bg-indigo-100  text-indigo-700",  ring: "ring-indigo-200"  },
+  { bg: "bg-violet-50",  border: "border-violet-200",  icon: "bg-violet-100  text-violet-700",  ring: "ring-violet-200"  },
+  { bg: "bg-sky-50",     border: "border-sky-200",     icon: "bg-sky-100     text-sky-700",     ring: "ring-sky-200"     },
+  { bg: "bg-teal-50",    border: "border-teal-200",    icon: "bg-teal-100    text-teal-700",    ring: "ring-teal-200"    },
+  { bg: "bg-emerald-50", border: "border-emerald-200", icon: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-200" },
+  { bg: "bg-rose-50",    border: "border-rose-200",    icon: "bg-rose-100    text-rose-700",    ring: "ring-rose-200"    },
+  { bg: "bg-amber-50",   border: "border-amber-200",   icon: "bg-amber-100   text-amber-700",   ring: "ring-amber-200"   },
+  { bg: "bg-fuchsia-50", border: "border-fuchsia-200", icon: "bg-fuchsia-100 text-fuchsia-700", ring: "ring-fuchsia-200" },
+  { bg: "bg-orange-50",  border: "border-orange-200",  icon: "bg-orange-100  text-orange-700",  ring: "ring-orange-200"  },
+  { bg: "bg-cyan-50",    border: "border-cyan-200",    icon: "bg-cyan-100    text-cyan-700",    ring: "ring-cyan-200"    },
+] as const;
+
+/* Avatar colours — one per member slot so each person looks distinct */
+const AVATAR_COLORS = [
+  "bg-indigo-500", "bg-violet-500", "bg-sky-500",     "bg-teal-500",
+  "bg-emerald-500","bg-rose-500",   "bg-amber-500",   "bg-fuchsia-500",
+  "bg-orange-500", "bg-cyan-500",   "bg-pink-500",    "bg-purple-500",
+] as const;
 
 const PT_LABELS: Record<string, string> = {
-  FIXED: "Fixed Price",
-  TIME_AND_MATERIAL: "T&M",
-  RETAINER: "Retainer",
-  INTERNAL: "Internal",
+  FIXED: "Fixed Price", TIME_AND_MATERIAL: "T&M",
+  RETAINER: "Retainer", INTERNAL: "Internal",
 };
+
+const SHIFT_TYPES   = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
+const PROJECT_TYPES = ["FIXED", "TIME_AND_MATERIAL", "RETAINER", "INTERNAL"] as const;
 
 const EMPTY_FORM = {
   name: "", description: "", status: "ACTIVE" as "ACTIVE" | "INACTIVE",
@@ -41,19 +74,28 @@ const EMPTY_FORM = {
   breakTime: "", location: "",
 };
 
+function fmtDate(s: string) {
+  return new Date(s + "T00:00:00").toLocaleDateString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+}
+
+/* ═══════════════════════════════════════════ */
 export default function ProjectsPage() {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [projects,    setProjects]    = useState<Project[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState("");
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [creating,    setCreating]    = useState(false);
   const [createError, setCreateError] = useState("");
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form,        setForm]        = useState(EMPTY_FORM);
+  const [search,      setSearch]      = useState("");
+  const [statusFilter,setStatusFilter]= useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
 
   const loadProjects = async () => {
     try {
-      const res = await apiFetch("/projects?join=members&join=projectManager");
+      const res = await apiFetch("/projects?join=members&join=projectManager&limit=200");
       setProjects(Array.isArray(res) ? res : res.data ?? []);
     } catch (err: any) {
       setError(err.message);
@@ -64,25 +106,41 @@ export default function ProjectsPage() {
 
   useEffect(() => { loadProjects(); }, []);
 
-  const set = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  /* filtered list */
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return projects.filter((p) => {
+      const matchSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.clientName ?? "").toLowerCase().includes(q) ||
+        (p.sourceCompany ?? "").toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === "ALL" || p.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [projects, search, statusFilter]);
+
+  const set      = (k: keyof typeof EMPTY_FORM) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
   const setField = (k: keyof typeof EMPTY_FORM) => (val: string) =>
     setForm((f) => ({ ...f, [k]: val }));
 
   const createProject = async () => {
     if (!form.name.trim()) { setCreateError("Project name is required."); return; }
-    setCreating(true);
-    setCreateError("");
+    setCreating(true); setCreateError("");
     try {
       const body: Record<string, any> = { name: form.name.trim() };
-      if (form.description.trim())   body.description   = form.description.trim();
-      if (form.status)               body.status        = form.status;
-      if (form.startDate)            body.startDate     = form.startDate;
-      if (form.endDate)              body.endDate       = form.endDate;
-      if (form.sourceCompany.trim()) body.sourceCompany = form.sourceCompany.trim();
-      if (form.clientName.trim())    body.clientName    = form.clientName.trim();
-      if (form.projectType)          body.projectType   = form.projectType;
-      if (form.shiftType)            body.shiftType     = form.shiftType;
+      if (form.description.trim())   body.description    = form.description.trim();
+      if (form.status)               body.status         = form.status;
+      if (form.startDate)            body.startDate      = form.startDate;
+      if (form.endDate)              body.endDate        = form.endDate;
+      if (form.sourceCompany.trim()) body.sourceCompany  = form.sourceCompany.trim();
+      if (form.clientName.trim())    body.clientName     = form.clientName.trim();
+      if (form.projectType)          body.projectType    = form.projectType;
+      if (form.shiftType)            body.shiftType      = form.shiftType;
       if (form.shiftStartTime)       body.shiftStartTime = form.shiftStartTime;
       if (form.shiftEndTime)         body.shiftEndTime   = form.shiftEndTime;
       if (form.breakTime !== "")     body.breakTime      = Number(form.breakTime);
@@ -107,13 +165,23 @@ export default function ProjectsPage() {
   if (loading) return <SmartLoader name={getUser().name} />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
+  const activeCount   = projects.filter(p => p.status === "ACTIVE").length;
+  const inactiveCount = projects.filter(p => p.status === "INACTIVE").length;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">Projects</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage and monitor all active initiatives</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {projects.length} project{projects.length !== 1 ? "s" : ""} &nbsp;·&nbsp;
+            <span className="text-green-600 font-medium">{activeCount} active</span>
+            {inactiveCount > 0 && (
+              <span className="text-slate-400"> · {inactiveCount} inactive</span>
+            )}
+          </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -123,95 +191,73 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {/* Grid */}
-      {projects.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
-          <Folder size={36} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No projects yet</p>
-          <p className="text-sm mt-1">Create your first project to get started.</p>
+      {/* ── Search + status filter ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search projects, clients…"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+          />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {projects.map((p) => (
-            <motion.div
-              key={p.id}
-              whileHover={{ y: -4, boxShadow: "0 8px 24px -4px rgba(0,0,0,0.08)" }}
-              onClick={() => router.push(`/employee/projects/${p.id}`)}
-              className="relative bg-white border border-slate-200 rounded-xl p-5 cursor-pointer overflow-hidden"
+
+        {/* Status pills */}
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+          {(["ALL", "ACTIVE", "INACTIVE"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                statusFilter === s
+                  ? "bg-white text-slate-900 shadow"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-transparent opacity-60 pointer-events-none" />
-              <div className="relative space-y-3">
-                {/* Name + status */}
-                <div className="flex justify-between items-start gap-2">
-                  <p className="font-semibold text-slate-900 leading-snug">{p.name}</p>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {p.projectType && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">
-                        {PT_LABELS[p.projectType] ?? p.projectType}
-                      </span>
-                    )}
-                    <StatusBadge status={p.status} />
-                  </div>
-                </div>
-
-                {/* Description */}
-                <p className="text-sm text-slate-500 line-clamp-2">
-                  {p.description || "No description provided"}
-                </p>
-
-                {/* Client / company */}
-                {(p.clientName || p.sourceCompany) && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                    <Building2 size={11} className="flex-shrink-0" />
-                    <span className="truncate">{p.clientName ?? p.sourceCompany}</span>
-                  </div>
-                )}
-
-                {/* Dates */}
-                {(p.startDate || p.endDate) && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                    <Calendar size={11} className="flex-shrink-0" />
-                    <span>
-                      {p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                      {" → "}
-                      {p.endDate   ? new Date(p.endDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Ongoing"}
-                    </span>
-                  </div>
-                )}
-
-                {/* Location */}
-                {p.location && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                    <MapPin size={11} className="flex-shrink-0" />
-                    <span className="truncate">{p.location}</span>
-                  </div>
-                )}
-
-                {/* Members + PM */}
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex -space-x-2">
-                    {(p.members ?? []).slice(0, 4).map((m, i) => (
-                      <div key={i} className="w-7 h-7 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center border-2 border-white font-medium">
-                        {m.name?.[0]?.toUpperCase() ?? "?"}
-                      </div>
-                    ))}
-                    {(p.members?.length ?? 0) > 4 && (
-                      <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-xs flex items-center justify-center border-2 border-white">
-                        +{p.members!.length - 4}
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400 truncate max-w-[120px]">
-                    {p.projectManager ? `PM: ${p.projectManager.name}` : "No PM assigned"}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
+              {s === "ALL" ? `All (${projects.length})` : s === "ACTIVE" ? `Active (${activeCount})` : `Inactive (${inactiveCount})`}
+            </button>
           ))}
         </div>
+      </div>
+
+      {/* ── Grid ── */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-20 text-slate-400">
+          <Folder size={36} className="mx-auto mb-3 opacity-30" />
+          <p className="font-medium">
+            {search || statusFilter !== "ALL" ? "No projects match your filters" : "No projects yet"}
+          </p>
+          <p className="text-sm mt-1">
+            {search || statusFilter !== "ALL"
+              ? "Try adjusting your search or filter."
+              : "Create your first project to get started."}
+          </p>
+        </div>
+      ) : (
+        <motion.div
+          layout
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
+        >
+          <AnimatePresence>
+            {filtered.map((p, idx) => {
+              const theme = CARD_PALETTE[p.id % CARD_PALETTE.length];
+              return (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  theme={theme}
+                  index={idx}
+                  onClick={() => router.push(`/employee/projects/${p.id}`)}
+                />
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
       )}
 
-      {/* Create Project Modal */}
+      {/* ── Create Project Modal ── */}
       <AnimatePresence>
         {showCreate && (
           <motion.div
@@ -229,7 +275,12 @@ export default function ProjectsPage() {
             >
               {/* Modal header */}
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-                <h2 className="font-semibold text-slate-900">New Project</h2>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <Briefcase size={14} className="text-white" />
+                  </div>
+                  <h2 className="font-semibold text-slate-900">New Project</h2>
+                </div>
                 <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600 transition">
                   <X size={18} />
                 </button>
@@ -237,8 +288,6 @@ export default function ProjectsPage() {
 
               {/* Scrollable body */}
               <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-
-                {/* Basic info */}
                 <Section title="Basic Info">
                   <Field label="Project Name *">
                     <input autoFocus value={form.name} onChange={set("name")}
@@ -262,25 +311,20 @@ export default function ProjectsPage() {
                   </div>
                 </Section>
 
-                {/* Client / Company */}
                 <Section title="Client & Company">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Client Name">
-                      <input value={form.clientName} onChange={set("clientName")}
-                        placeholder="John Doe" className={INPUT} />
+                      <input value={form.clientName} onChange={set("clientName")} placeholder="John Doe" className={INPUT} />
                     </Field>
                     <Field label="Source Company">
-                      <input value={form.sourceCompany} onChange={set("sourceCompany")}
-                        placeholder="Acme Corp" className={INPUT} />
+                      <input value={form.sourceCompany} onChange={set("sourceCompany")} placeholder="Acme Corp" className={INPUT} />
                     </Field>
                   </div>
                   <Field label="Location">
-                    <input value={form.location} onChange={set("location")}
-                      placeholder="Pune, Maharashtra" className={INPUT} />
+                    <input value={form.location} onChange={set("location")} placeholder="Pune, Maharashtra" className={INPUT} />
                   </Field>
                 </Section>
 
-                {/* Timeline */}
                 <Section title="Timeline">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Start Date">
@@ -292,16 +336,14 @@ export default function ProjectsPage() {
                   </div>
                 </Section>
 
-                {/* Shift */}
                 <Section title="Shift">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Shift Type">
                       <Combobox value={form.shiftType} onChange={setField("shiftType")} placeholder="— Select —"
                         options={[{ value: "", label: "None" }, ...SHIFT_TYPES.map((t) => ({ value: t, label: t.charAt(0) + t.slice(1).toLowerCase() }))]} />
                     </Field>
-                    <Field label="Break Time (minutes)">
-                      <input type="number" min={0} value={form.breakTime} onChange={set("breakTime")}
-                        placeholder="30" className={INPUT} />
+                    <Field label="Break (minutes)">
+                      <input type="number" min={0} value={form.breakTime} onChange={set("breakTime")} placeholder="30" className={INPUT} />
                     </Field>
                     <Field label="Shift Start">
                       <input type="time" value={form.shiftStartTime} onChange={set("shiftStartTime")} className={INPUT} />
@@ -312,14 +354,21 @@ export default function ProjectsPage() {
                   </div>
                 </Section>
 
-                {createError && <p className="text-red-500 text-xs">{createError}</p>}
+                {createError && (
+                  <p className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    {createError}
+                  </p>
+                )}
               </div>
 
               {/* Footer */}
               <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0">
                 <button onClick={createProject} disabled={creating}
-                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-60">
-                  {creating ? "Creating…" : "Create Project"}
+                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-60 flex items-center justify-center gap-2">
+                  {creating
+                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
+                    : <><Plus size={14} /> Create Project</>
+                  }
                 </button>
                 <button onClick={() => setShowCreate(false)}
                   className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
@@ -334,7 +383,214 @@ export default function ProjectsPage() {
   );
 }
 
-/* ── helpers ── */
+/* ════════════════════════════════
+   Project Card
+════════════════════════════════ */
+function ProjectCard({
+  project: p, theme, index, onClick,
+}: {
+  project: Project;
+  theme: typeof CARD_PALETTE[number];
+  index: number;
+  onClick: () => void;
+}) {
+  const members    = p.members ?? [];
+  const visible    = members.slice(0, 4);
+  const overflow   = members.length - 4;
+
+  /* shift info label */
+  const shiftLabel = p.shiftStartTime && p.shiftEndTime
+    ? `${p.shiftStartTime.slice(0, 5)} – ${p.shiftEndTime.slice(0, 5)}`
+    : p.shiftType
+    ? p.shiftType.charAt(0) + p.shiftType.slice(1).toLowerCase()
+    : null;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ delay: Math.min(index * 0.05, 0.3) }}
+      whileHover={{ y: -5, boxShadow: "0 12px 28px -6px rgba(0,0,0,0.10)" }}
+      onClick={onClick}
+      className={`relative ${theme.bg} border ${theme.border} rounded-xl p-5 cursor-pointer overflow-hidden group`}
+    >
+      {/* Subtle gradient overlay on hover */}
+      <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-all duration-300 pointer-events-none rounded-xl" />
+
+      <div className="relative space-y-3.5">
+
+        {/* ── Top row: icon + name + badges ── */}
+        <div className="flex items-start gap-3">
+          {/* Project initial icon */}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base flex-shrink-0 ${theme.icon}`}>
+            {p.name[0]?.toUpperCase() ?? "P"}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-900 leading-tight truncate" title={p.name}>
+              {p.name}
+            </p>
+            {/* Badges */}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <StatusBadge status={p.status} />
+              {p.projectType && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${theme.icon} ${theme.border}`}>
+                  {PT_LABELS[p.projectType] ?? p.projectType}
+                </span>
+              )}
+              {shiftLabel && (
+                <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-white/70 border border-slate-200 text-slate-500 font-medium">
+                  <Clock3 size={9} /> {shiftLabel}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Description ── */}
+        <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+          {p.description || "No description provided."}
+        </p>
+
+        {/* ── Meta info ── */}
+        <div className="space-y-1.5">
+          {(p.clientName || p.sourceCompany) && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Building2 size={11} className="flex-shrink-0 text-slate-400" />
+              <span className="truncate">{p.clientName ?? p.sourceCompany}</span>
+              {p.clientName && p.sourceCompany && p.clientName !== p.sourceCompany && (
+                <span className="text-slate-300">· {p.sourceCompany}</span>
+              )}
+            </div>
+          )}
+
+          {(p.startDate || p.endDate) && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Calendar size={11} className="flex-shrink-0" />
+              <span>
+                {p.startDate ? fmtDate(p.startDate) : "—"}
+                <span className="mx-1 text-slate-300">→</span>
+                {p.endDate ? fmtDate(p.endDate) : "Ongoing"}
+              </span>
+            </div>
+          )}
+
+          {p.location && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <MapPin size={11} className="flex-shrink-0" />
+              <span className="truncate">{p.location}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Divider ── */}
+        <div className={`border-t ${theme.border}`} />
+
+        {/* ── Footer: Members + PM ── */}
+        <div
+          className="flex items-center justify-between gap-2"
+          onClick={(e) => e.stopPropagation()} /* prevent card nav when clicking avatars */
+        >
+          {/* Member avatars */}
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {visible.map((m, i) => (
+                <MemberAvatar
+                  key={m.id ?? i}
+                  member={m}
+                  colorCls={AVATAR_COLORS[i % AVATAR_COLORS.length]}
+                />
+              ))}
+              {overflow > 0 && (
+                <div className="w-7 h-7 rounded-full bg-white border-2 border-slate-200 text-slate-500 text-[10px] font-semibold flex items-center justify-center z-10">
+                  +{overflow}
+                </div>
+              )}
+            </div>
+
+            {members.length > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                <Users size={10} />
+                {members.length} member{members.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {/* PM chip */}
+          {p.projectManager ? (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${
+                  AVATAR_COLORS[(p.projectManager.id ?? 0) % AVATAR_COLORS.length]
+                }`}
+              >
+                {p.projectManager.name[0]?.toUpperCase()}
+              </div>
+              <span className="text-[11px] text-slate-400 truncate max-w-[90px]" title={p.projectManager.name}>
+                {p.projectManager.name}
+              </span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-300 italic flex-shrink-0">No PM</span>
+          )}
+        </div>
+
+      </div>
+    </motion.div>
+  );
+}
+
+/* ════════════════════════════════
+   Member Avatar with tooltip
+════════════════════════════════ */
+function MemberAvatar({ member, colorCls }: { member: Member; colorCls: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="relative z-10 hover:z-50"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {/* Avatar circle */}
+      <div
+        className={`w-7 h-7 rounded-full ${colorCls} text-white text-[11px] font-bold flex items-center justify-center border-2 border-white cursor-default select-none transition-transform duration-150 hover:scale-110`}
+      >
+        {member.name[0]?.toUpperCase() ?? "?"}
+      </div>
+
+      {/* Tooltip */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            transition={{ duration: 0.12 }}
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none"
+          >
+            <div className="bg-slate-900 text-white rounded-lg px-3 py-2 shadow-xl min-w-max">
+              <p className="text-xs font-semibold leading-tight">{member.name}</p>
+              {(member.designation || member.role) && (
+                <p className="text-[10px] text-slate-300 mt-0.5">
+                  {member.designation ?? member.role}
+                </p>
+              )}
+            </div>
+            {/* Arrow */}
+            <div className="flex justify-center -mt-1">
+              <div className="w-2 h-2 bg-slate-900 rotate-45" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ─── tiny helpers ─── */
 const INPUT = "w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -356,7 +612,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return status === "ACTIVE"
-    ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 flex-shrink-0">Active</span>
-    : <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500 flex-shrink-0">Inactive</span>;
+  return status === "ACTIVE" ? (
+    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">
+      <span className="w-1 h-1 rounded-full bg-green-500 inline-block" />
+      Active
+    </span>
+  ) : (
+    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-500">
+      Inactive
+    </span>
+  );
 }
