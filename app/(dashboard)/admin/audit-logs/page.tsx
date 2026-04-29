@@ -11,6 +11,7 @@ import { RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
 import { parseUTC, fmtDateTime, timeAgo } from "@/lib/date";
 
 type AuditEntity = "TIMESHEET" | "PROJECT" | "TASK";
@@ -241,23 +242,21 @@ export default function AuditLogsPage() {
                 {/* Date From */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Date from</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={filters.dateFrom}
-                    onChange={(e) => setF("dateFrom")(e.target.value)}
-                    className="w-full border border-slate-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    onChange={setF("dateFrom")}
+                    placeholder="From date"
                   />
                 </div>
 
                 {/* Date To */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Date to</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={filters.dateTo}
+                    onChange={setF("dateTo")}
+                    placeholder="To date"
                     min={filters.dateFrom || undefined}
-                    onChange={(e) => setF("dateTo")(e.target.value)}
-                    className="w-full border border-slate-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
               </div>

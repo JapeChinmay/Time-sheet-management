@@ -150,7 +150,7 @@ export default function AdminDashboard() {
   /* ── derived stats ── */
   const activeUsers = users.filter((u) => u.status === "ACTIVE");
   const inactiveUsers = users.filter((u) => u.status === "INACTIVE");
-  const activeProjects = projects.filter((p) => p.status === "ACTIVE");
+  const activeProjects = projects.filter((p) => p.status === "ACTIVE" || p.status === "CREATED");
   const weeklyHours = timesheets.reduce((s, t) => s + t.hours, 0);
 
   // Hours per user this week
@@ -231,9 +231,8 @@ export default function AdminDashboard() {
                   key={u.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  whileHover={{ backgroundColor: "#f8fafc" }}
                   onClick={() => router.push(`/admin/users/${u.id}`)}
-                  className="px-5 py-3.5 flex items-center gap-3 cursor-pointer"
+                  className="px-5 py-3.5 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors duration-150"
                 >
                   {/* Avatar */}
                   <div className="w-8 h-8 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center font-semibold flex-shrink-0">
@@ -322,8 +321,13 @@ export default function AdminDashboard() {
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-sm font-medium text-slate-800 truncate max-w-[160px]">{p.name}</p>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
-                        {p.status}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                        p.status === "ACTIVE"    ? "bg-green-100 text-green-700"  :
+                        p.status === "CREATED"   ? "bg-blue-50 text-blue-700"     :
+                        p.status === "COMPLETED" ? "bg-purple-50 text-purple-700" :
+                        "bg-slate-100 text-slate-500"
+                      }`}>
+                        {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
                       </span>
                       <span className="text-xs font-semibold text-slate-700">{p.hours}h</span>
                     </div>
@@ -443,10 +447,7 @@ const STAT_COLORS: Record<string, string> = {
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: string }) {
   return (
-    <motion.div
-      whileHover={{ y: -3 }}
-      className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-sm"
-    >
+    <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${STAT_COLORS[color] ?? STAT_COLORS.slate}`}>
         {icon}
       </div>
@@ -454,7 +455,7 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
         <p className="text-xs text-slate-400">{label}</p>
         <p className="text-xl font-bold text-slate-900 leading-tight">{value}</p>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

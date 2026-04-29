@@ -32,6 +32,9 @@ import {
   PartyPopper,
   Sparkles,
   Calendar,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
@@ -54,9 +57,9 @@ interface BugNotification {
 }
 
 interface SearchResults {
-  projects:   { id: number; name: string; clientName: string | null; status: string }[];
-  tasks:      { id: number; name: string; status: string; projectId: number }[];
-  users:      { id: number; name: string; email: string; role: string; designation: string | null }[];
+  projects: { id: number; name: string; clientName: string | null; status: string }[];
+  tasks: { id: number; name: string; status: string; projectId: number }[];
+  users: { id: number; name: string; email: string; role: string; designation: string | null }[];
   bugReports: { id: number; title: string; status: string }[];
 }
 
@@ -77,27 +80,27 @@ function initials(name: string) {
 
 const ROLE_COLOR: Record<string, string> = {
   SUPERADMIN: "bg-violet-600",
-  ADMIN:      "bg-blue-600",
-  INTERNAL:   "bg-emerald-600",
-  EXTERNAL:   "bg-amber-500",
+  ADMIN: "bg-blue-600",
+  INTERNAL: "bg-emerald-600",
+  EXTERNAL: "bg-amber-500",
 };
 
 const ROLE_BADGE: Record<string, string> = {
   SUPERADMIN: "bg-violet-100 text-violet-700",
-  ADMIN:      "bg-blue-100 text-blue-700",
-  INTERNAL:   "bg-emerald-100 text-emerald-700",
-  EXTERNAL:   "bg-amber-100 text-amber-700",
+  ADMIN: "bg-blue-100 text-blue-700",
+  INTERNAL: "bg-emerald-100 text-emerald-700",
+  EXTERNAL: "bg-amber-100 text-amber-700",
 };
 
 const PAGE_TITLES: Record<string, string> = {
-  "/employee":           "Dashboard",
+  "/employee": "Dashboard",
   "/employee/timesheet": "Timesheet",
-  "/employee/projects":  "Projects",
-  "/employee/tasks":     "Tasks",
-  "/employee/users":     "Users",
-  "/admin":              "Admin Overview",
-  "/admin/audit-logs":   "Activity Logs",
-  "/admin/timesheets":   "Timesheet Approval",
+  "/employee/projects": "Projects",
+  "/employee/tasks": "Tasks",
+  "/employee/users": "Users",
+  "/admin": "Admin Overview",
+  "/admin/audit-logs": "Activity Logs",
+  "/admin/timesheets": "Timesheet Approval",
   "/manager/timesheets": "Timesheet Approval",
   "/support/report-bug": "Report Bug",
 };
@@ -120,14 +123,14 @@ function fmtRelative(iso: string) {
 }
 
 const STATUS_DOT: Record<string, string> = {
-  ACTIVE:       "bg-emerald-400",
-  INACTIVE:     "bg-slate-300",
-  CREATED:      "bg-slate-400",
-  ASSIGNED:     "bg-blue-400",
+  ACTIVE: "bg-emerald-400",
+  INACTIVE: "bg-slate-300",
+  CREATED: "bg-slate-400",
+  ASSIGNED: "bg-blue-400",
   WORK_IN_PROGRESS: "bg-amber-400",
-  ON_HOLD:      "bg-rose-400",
-  UNRESOLVED:   "bg-rose-400",
-  RESOLVED:     "bg-emerald-400",
+  ON_HOLD: "bg-rose-400",
+  UNRESOLVED: "bg-rose-400",
+  RESOLVED: "bg-emerald-400",
 };
 
 /* ─── useDebounce ──────────────────────────────────────────────────────── */
@@ -159,7 +162,7 @@ function saveSeenResolvedIds(userId: number, ids: number[]) {
       `wp_seen_resolved_${userId}`,
       JSON.stringify([...existing]),
     );
-  } catch {}
+  } catch { }
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -174,7 +177,7 @@ function ResolvedBugsModal({
 }) {
   const [idx, setIdx] = useState(0);          // which bug is shown (carousel)
   const current = bugs[idx];
-  const total   = bugs.length;
+  const total = bugs.length;
 
   function fmtDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-IN", {
@@ -229,9 +232,8 @@ function ResolvedBugsModal({
                 <button
                   key={i}
                   onClick={() => setIdx(i)}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${
-                    i === idx ? "bg-white w-4" : "bg-white/40"
-                  }`}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === idx ? "bg-white w-4" : "bg-white/40"
+                    }`}
                 />
               ))}
             </div>
@@ -322,12 +324,12 @@ function ResolvedBugsModal({
    ════════════════════════════════════════════════════════════════════════ */
 function GlobalSearch() {
   const router = useRouter();
-  const [query, setQuery]       = useState("");
-  const [results, setResults]   = useState<SearchResults | null>(null);
-  const [loading, setLoading]   = useState(false);
-  const [open, setOpen]         = useState(false);
-  const wrapRef                 = useRef<HTMLDivElement>(null);
-  const inputRef                = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResults | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQ = useDebounce(query, 300);
 
@@ -571,17 +573,59 @@ function TopBar({
   isAdmin: boolean;
   onLogout: () => void;
 }) {
-  const pathname  = usePathname();
+  const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
 
   /* ── Notifications ── */
-  const [notes, setNotes]         = useState<BugNotification[]>([]);
+  const [notes, setNotes] = useState<BugNotification[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
-  const notesRef                  = useRef<HTMLDivElement>(null);
+  const notesRef = useRef<HTMLDivElement>(null);
 
   /* ── Profile ── */
   const [profOpen, setProfOpen] = useState(false);
-  const profRef                 = useRef<HTMLDivElement>(null);
+  const profRef = useRef<HTMLDivElement>(null);
+
+  /* ── Change password modal ── */
+  const [showPwdModal, setShowPwdModal]   = useState(false);
+  const [currentPwd, setCurrentPwd]       = useState("");
+  const [newPwd, setNewPwd]               = useState("");
+  const [confirmPwd, setConfirmPwd]       = useState("");
+  const [showCurPwd, setShowCurPwd]       = useState(false);
+  const [showNewPwd, setShowNewPwd]       = useState(false);
+  const [showConfPwd, setShowConfPwd]     = useState(false);
+  const [savingPwd, setSavingPwd]         = useState(false);
+  const [pwdErr, setPwdErr]               = useState("");
+  const [pwdSuccess, setPwdSuccess]       = useState(false);
+
+  const openPwdModal = () => {
+    setProfOpen(false);
+    setCurrentPwd(""); setNewPwd(""); setConfirmPwd("");
+    setShowCurPwd(false); setShowNewPwd(false); setShowConfPwd(false);
+    setPwdErr(""); setPwdSuccess(false);
+    setShowPwdModal(true);
+  };
+
+  const changePassword = async () => {
+    setPwdErr("");
+    if (!currentPwd)           { setPwdErr("Current password is required."); return; }
+    if (newPwd.length < 6)     { setPwdErr("New password must be at least 6 characters."); return; }
+    if (newPwd !== confirmPwd) { setPwdErr("Passwords do not match."); return; }
+    if (newPwd === currentPwd) { setPwdErr("New password must differ from the current one."); return; }
+    setSavingPwd(true);
+    try {
+      const userId = user?.sub ?? (user as any)?.id;
+      await apiFetch(`/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ currentPassword: currentPwd, password: newPwd }),
+      });
+      setPwdSuccess(true);
+      setTimeout(() => { setShowPwdModal(false); setPwdSuccess(false); }, 1400);
+    } catch (e: any) {
+      setPwdErr(e.message ?? "Failed to update password.");
+    } finally {
+      setSavingPwd(false);
+    }
+  };
 
   /* fetch notifications */
   useEffect(() => {
@@ -590,7 +634,7 @@ function TopBar({
         const list = Array.isArray(data) ? data : [];
         setNotes(list.filter((n) => n.status === "UNRESOLVED").slice(0, 15));
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* outside-click */
@@ -753,6 +797,14 @@ function TopBar({
 
                 <div className="py-1.5">
                   <button
+                    onClick={openPwdModal}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition"
+                  >
+                    <KeyRound size={15} className="text-slate-400" />
+                    Change Password
+                  </button>
+                  <div className="mx-4 my-1 border-t border-slate-100" />
+                  <button
                     onClick={() => { setProfOpen(false); onLogout(); }}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition"
                   >
@@ -765,6 +817,133 @@ function TopBar({
           </AnimatePresence>
         </div>
       </div>
+
+      {/* ── Change Password Modal ── */}
+      <AnimatePresence>
+        {showPwdModal && (
+          <motion.div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowPwdModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              transition={{ duration: 0.18 }}
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <KeyRound size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-slate-900 text-sm">Change Password</h2>
+                    <p className="text-xs text-slate-400">{user?.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowPwdModal(false)} className="text-slate-400 hover:text-slate-600 transition">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+
+                {/* Current password */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Current Password</label>
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      type={showCurPwd ? "text" : "password"}
+                      value={currentPwd}
+                      onChange={(e) => setCurrentPwd(e.target.value)}
+                      placeholder="Your current password"
+                      className="w-full border border-slate-200 px-3 py-2.5 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                    />
+                    <button type="button" onClick={() => setShowCurPwd((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                      {showCurPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New password */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPwd ? "text" : "password"}
+                      value={newPwd}
+                      onChange={(e) => setNewPwd(e.target.value)}
+                      placeholder="Min. 6 characters"
+                      className="w-full border border-slate-200 px-3 py-2.5 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                    />
+                    <button type="button" onClick={() => setShowNewPwd((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                      {showNewPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {newPwd.length > 0 && newPwd.length < 6 && (
+                    <p className="text-xs text-red-500 mt-1">At least 6 characters required.</p>
+                  )}
+                </div>
+
+                {/* Confirm password */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfPwd ? "text" : "password"}
+                      value={confirmPwd}
+                      onChange={(e) => setConfirmPwd(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className="w-full border border-slate-200 px-3 py-2.5 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                    />
+                    <button type="button" onClick={() => setShowConfPwd((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                      {showConfPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {confirmPwd.length > 0 && newPwd !== confirmPwd && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
+                  )}
+                </div>
+
+                {pwdErr && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{pwdErr}</p>
+                )}
+                {pwdSuccess && (
+                  <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> Password updated successfully!
+                  </p>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 flex gap-3">
+                <button
+                  onClick={changePassword}
+                  disabled={savingPwd || !currentPwd || newPwd.length < 6 || newPwd !== confirmPwd}
+                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {savingPwd
+                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+                    : <><KeyRound size={14} /> Update Password</>
+                  }
+                </button>
+                <button
+                  onClick={() => setShowPwdModal(false)}
+                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
@@ -777,17 +956,17 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser]     = useState<JwtPayload | null>(null);
+  const [user, setUser] = useState<JwtPayload | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
-  const [isPM, setIsPM]     = useState(false);
-  const [open, setOpen]     = useState(false);
+  const [isPM, setIsPM] = useState(false);
+  const [open, setOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   /* ── Resolved-bug login modal ── */
-  const [resolvedBugs, setResolvedBugs]           = useState<BugNotification[]>([]);
+  const [resolvedBugs, setResolvedBugs] = useState<BugNotification[]>([]);
   const [showResolvedModal, setShowResolvedModal] = useState(false);
 
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
@@ -815,7 +994,7 @@ export default function DashboardLayout({
           setShowResolvedModal(true);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [userId]);
 
   const dismissResolvedModal = () => {
@@ -830,7 +1009,7 @@ export default function DashboardLayout({
         const data = Array.isArray(res) ? res : res.data ?? [];
         setIsPM(data.length > 0);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [userId]);
 
   const handleLogout = () => {
@@ -841,7 +1020,7 @@ export default function DashboardLayout({
   const isActive = (path: string) => pathname === path;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
 
       {/* Mobile hamburger */}
       <button
@@ -851,11 +1030,26 @@ export default function DashboardLayout({
         {open ? <X size={18} /> : <Menu size={18} />}
       </button>
 
+      {/* ── Mobile backdrop — tap outside to close ── */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="sidebar-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setOpen(false)}
+            className="md:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Sidebar ── */}
       <motion.div
         initial={{ x: -250 }}
         animate={{ x: open || (typeof window !== "undefined" && window.innerWidth >= 768) ? 0 : -250 }}
-        className="fixed md:static z-40 w-64 h-full bg-white border-r border-slate-200 p-5 flex flex-col"
+        className="fixed md:sticky md:top-0 z-40 w-64 h-screen overflow-y-auto shrink-0 bg-white border-r border-slate-200 p-5 flex flex-col"
       >
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-slate-800 tracking-tight">WorkPulse</h2>
@@ -863,20 +1057,16 @@ export default function DashboardLayout({
         </div>
 
         <nav className="space-y-1 text-sm">
-          <SidebarItem icon={<LayoutDashboard size={16} />} label="Dashboard"   href="/employee"           active={isActive("/employee")} />
-          <SidebarItem icon={<Clock size={16} />}           label="Timesheet"   href="/employee/timesheet"  active={isActive("/employee/timesheet")} />
-          <SidebarItem icon={<Folder size={16} />}          label="Projects"    href="/employee/projects"   active={isActive("/employee/projects")} />
-          <SidebarItem icon={<ListTodo size={16} />}        label="Tasks"       href="/employee/tasks"      active={pathname.startsWith("/employee/tasks")} />
-
-          <div className="border-t border-slate-200 my-3" />
-          <p className="text-xs text-slate-400 uppercase px-2">Support</p>
-          <SidebarItem icon={<Bug size={16} />} label="Report Bug" href="/support/report-bug" active={pathname.startsWith("/support/report-bug")} />
+          <SidebarItem icon={<LayoutDashboard size={16} />} label="Dashboard"  href="/employee"           active={isActive("/employee")}                        onClose={() => setOpen(false)} />
+          <SidebarItem icon={<Clock size={16} />}           label="Timesheet"  href="/employee/timesheet"  active={isActive("/employee/timesheet")}              onClose={() => setOpen(false)} />
+          <SidebarItem icon={<Folder size={16} />}          label="Projects"   href="/employee/projects"   active={isActive("/employee/projects")}               onClose={() => setOpen(false)} />
+          <SidebarItem icon={<ListTodo size={16} />}        label="Tasks"      href="/employee/tasks"      active={pathname.startsWith("/employee/tasks")}       onClose={() => setOpen(false)} />
 
           {isPM && (
             <>
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Manager</p>
-              <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")} />
+              <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")} onClose={() => setOpen(false)} />
             </>
           )}
 
@@ -884,15 +1074,19 @@ export default function DashboardLayout({
             <>
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Admin</p>
-              <SidebarItem icon={<Shield size={16} />}         label="Admin Overview"      href="/admin"              active={isActive("/admin")} />
-              <SidebarItem icon={<Users size={16} />}          label="Users"               href="/employee/users"     active={isActive("/employee/users")} />
-              <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval"  href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")} />
-              <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"       href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")} />
+              <SidebarItem icon={<Shield size={16} />}         label="Admin Overview"     href="/admin"              active={isActive("/admin")}                          onClose={() => setOpen(false)} />
+              <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"     active={isActive("/employee/users")}                 onClose={() => setOpen(false)} />
+              <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")}  onClose={() => setOpen(false)} />
+              <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")}    onClose={() => setOpen(false)} />
             </>
           )}
+
+          <div className="border-t border-slate-200 my-3" />
+          <p className="text-xs text-slate-400 uppercase px-2">Support</p>
+          <SidebarItem icon={<Bug size={16} />} label="Report Bug" href="/support/report-bug" active={pathname.startsWith("/support/report-bug")} onClose={() => setOpen(false)} />
         </nav>
 
-        <div className="mt-auto pt-6 border-t border-slate-200">
+        {/* <div className="mt-auto pt-6 border-t border-slate-200">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -903,11 +1097,11 @@ export default function DashboardLayout({
             Logout
           </motion.button>
           <p className="text-xs text-slate-400 mt-4">v1.0 WorkPulse</p>
-        </div>
+        </div> */}
       </motion.div>
 
       {/* ── Main column ── */}
-      <div className="flex-1 flex flex-col min-h-screen md:ml-0 overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden md:ml-0">
         <TopBar user={user} isAdmin={isAdmin} onLogout={() => setShowLogoutModal(true)} />
         <main className="flex-1 p-6 overflow-auto">{children}</main>
       </div>
@@ -966,12 +1160,12 @@ export default function DashboardLayout({
 
 /* ─── SidebarItem ─────────────────────────────────────────────────────── */
 function SidebarItem({
-  icon, label, href, active,
+  icon, label, href, active, onClose,
 }: {
-  icon: React.ReactNode; label: string; href: string; active: boolean;
+  icon: React.ReactNode; label: string; href: string; active: boolean; onClose?: () => void;
 }) {
   return (
-    <Link href={href}>
+    <Link href={href} onClick={onClose}>
       <motion.div
         whileHover={{ x: 3 }}
         className={`relative flex items-center gap-3 px-3 py-2 rounded-md transition

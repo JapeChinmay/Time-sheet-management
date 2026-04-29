@@ -11,6 +11,8 @@ import {
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
 import { parseUTC, fmtDate as fmtDateUTC } from "@/lib/date";
 
 type UserOption = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
@@ -45,7 +47,7 @@ type Project = {
   id: number;
   name: string;
   description?: string;
-  status: "ACTIVE" | "INACTIVE";
+  status: "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED";
   createdAt: string;
   projectManagerId?: number | null;
   projectManager?: UserOption;
@@ -679,7 +681,7 @@ function EditDetailsModal({ project, onClose, onSaved }: {
   const [form, setForm] = useState({
     name:           project.name ?? "",
     description:    project.description ?? "",
-    status:         project.status ?? "ACTIVE",
+    status:         project.status ?? "CREATED",
     startDate:      project.startDate ?? "",
     endDate:        project.endDate ?? "",
     sourceCompany:  project.sourceCompany ?? "",
@@ -748,7 +750,12 @@ function EditDetailsModal({ project, onClose, onSaved }: {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Status">
                 <Combobox value={form.status} onChange={setField("status")}
-                  options={[{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }]} />
+                  options={[
+                    { value: "CREATED",   label: "Created"   },
+                    { value: "ACTIVE",    label: "Active"    },
+                    { value: "INACTIVE",  label: "Inactive"  },
+                    { value: "COMPLETED", label: "Completed" },
+                  ]} />
               </Field>
               <Field label="Project Type">
                 <Combobox value={form.projectType} onChange={setField("projectType")} placeholder="— None —"
@@ -774,10 +781,10 @@ function EditDetailsModal({ project, onClose, onSaved }: {
           <Section title="Timeline">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start Date">
-                <input type="date" value={form.startDate} onChange={set("startDate")} className={INPUT} />
+                <DatePicker value={form.startDate} onChange={setField("startDate")} placeholder="Start date" />
               </Field>
               <Field label="End Date">
-                <input type="date" value={form.endDate} onChange={set("endDate")} className={INPUT} />
+                <DatePicker value={form.endDate} onChange={setField("endDate")} placeholder="End date" min={form.startDate || undefined} />
               </Field>
             </div>
           </Section>
@@ -793,10 +800,10 @@ function EditDetailsModal({ project, onClose, onSaved }: {
                   placeholder="30" className={INPUT} />
               </Field>
               <Field label="Shift Start">
-                <input type="time" value={form.shiftStartTime} onChange={set("shiftStartTime")} className={INPUT} />
+                <TimePicker value={form.shiftStartTime} onChange={setField("shiftStartTime")} placeholder="Start time" />
               </Field>
               <Field label="Shift End">
-                <input type="time" value={form.shiftEndTime} onChange={set("shiftEndTime")} className={INPUT} />
+                <TimePicker value={form.shiftEndTime} onChange={setField("shiftEndTime")} placeholder="End time" />
               </Field>
             </div>
           </Section>
@@ -1195,8 +1202,18 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
+const PROJECT_STATUS_META: Record<string, { cls: string; label: string }> = {
+  CREATED:   { cls: "bg-blue-50 text-blue-700",    label: "Created"   },
+  ACTIVE:    { cls: "bg-green-100 text-green-700",  label: "Active"    },
+  INACTIVE:  { cls: "bg-slate-100 text-slate-500",  label: "Inactive"  },
+  COMPLETED: { cls: "bg-purple-50 text-purple-700", label: "Completed" },
+};
+
 function StatusBadge({ status }: { status: string }) {
-  return status === "ACTIVE"
-    ? <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700">Active</span>
-    : <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500">Inactive</span>;
+  const meta = PROJECT_STATUS_META[status] ?? PROJECT_STATUS_META.INACTIVE;
+  return (
+    <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${meta.cls}`}>
+      {meta.label}
+    </span>
+  );
 }

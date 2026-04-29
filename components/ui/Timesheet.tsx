@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   format, startOfWeek, addDays, subDays,
   isSameDay, getDay, isAfter,
+  startOfMonth, isSameMonth, addMonths, subMonths,
 } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock, Lock } from "lucide-react";
@@ -51,6 +52,175 @@ const DOT_COLORS = [
   "bg-pink-400","bg-rose-400","bg-sky-400","bg-teal-400",
 ];
 
+/* ════════════════════════════════════════════════════════════════════════
+   WeekPicker — click the week label to jump to any week of any year
+   ════════════════════════════════════════════════════════════════════════ */
+function WeekPicker({
+  value,
+  maxWeekStart,
+  onChange,
+}: {
+  value: Date;
+  maxWeekStart: Date;
+  onChange: (ws: Date) => void;
+}) {
+  const [open, setOpen]               = useState(false);
+  const [pickerMonth, setPickerMonth] = useState<Date>(() => startOfMonth(value));
+  const ref = useRef<HTMLDivElement>(null);
+
+  /* sync picker month when parent navigates prev/next */
+  useEffect(() => { setPickerMonth(startOfMonth(value)); }, [value]);
+
+  /* close on outside click */
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  /* build 6 rows × 7 cols, Mon-aligned */
+  const calStart = startOfWeek(startOfMonth(pickerMonth), { weekStartsOn: 1 });
+  const weeks: Date[][] = Array.from({ length: 6 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => addDays(calStart, w * 7 + d))
+  );
+
+  const isSelectedWeek = (row: Date[]) => isSameDay(row[0], value);
+  const isFutureWeek   = (row: Date[]) => isAfter(row[0], maxWeekStart);
+  const isOnMaxMonth   = isSameMonth(pickerMonth, maxWeekStart);
+  const today          = new Date();
+
+  const selectWeek = (row: Date[]) => {
+    if (isFutureWeek(row)) return;
+    onChange(row[0]);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      {/* ── Trigger ── */}
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="flex flex-col items-center hover:bg-slate-50 rounded-lg px-4 py-1.5 transition group"
+      >
+        <p className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition">
+          {format(value, "MMM d")} – {format(addDays(value, 6), "MMM d, yyyy")}
+        </p>
+        {isSameDay(value, maxWeekStart) ? (
+          <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full mt-0.5">
+            Current week
+          </span>
+        ) : (
+          <span className="text-[10px] text-slate-400 mt-0.5">
+            Click to pick a week ▾
+          </span>
+        )}
+      </button>
+
+      {/* ── Dropdown calendar ── */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 w-72"
+          >
+            {/* Month navigation */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={() => setPickerMonth((m) => subMonths(m, 1))}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-500"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <p className="text-sm font-semibold text-slate-800">
+                {format(pickerMonth, "MMMM yyyy")}
+              </p>
+              <button
+                onClick={() => setPickerMonth((m) => addMonths(m, 1))}
+                disabled={isOnMaxMonth}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+
+            {/* Day-of-week headers */}
+            <div className="grid grid-cols-7 mb-1">
+              {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
+                <span key={d} className="text-center text-[10px] font-semibold text-slate-400 py-0.5">
+                  {d}
+                </span>
+              ))}
+            </div>
+
+            {/* Week rows — each full row is a selectable week */}
+            <div className="space-y-0.5">
+              {weeks.map((row, wi) => {
+                const hasCurrentMonth = row.some((d) => isSameMonth(d, pickerMonth));
+                if (!hasCurrentMonth) return null;
+
+                const selected = isSelectedWeek(row);
+                const future   = isFutureWeek(row);
+
+                return (
+                  <button
+                    key={wi}
+                    onClick={() => selectWeek(row)}
+                    disabled={future}
+                    title={future ? "Future week — not available" : `Select week of ${format(row[0], "MMM d")}`}
+                    className={`w-full grid grid-cols-7 rounded-lg transition-all
+                      ${selected
+                        ? "bg-slate-900 shadow-sm"
+                        : future
+                        ? "opacity-30 cursor-not-allowed"
+                        : "hover:bg-indigo-50 cursor-pointer"
+                      }`}
+                  >
+                    {row.map((day, di) => {
+                      const inMonth = isSameMonth(day, pickerMonth);
+                      const isToday = isSameDay(day, today);
+                      return (
+                        <span
+                          key={di}
+                          className={`py-1.5 text-center text-xs rounded-md font-medium
+                            ${selected
+                              ? "text-white"
+                              : !inMonth
+                              ? "text-slate-300"
+                              : isToday
+                              ? "text-indigo-600 font-bold"
+                              : "text-slate-700"
+                            }`}
+                        >
+                          {format(day, "d")}
+                        </span>
+                      );
+                    })}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Jump to current week shortcut */}
+            {!isSameDay(value, maxWeekStart) && (
+              <button
+                onClick={() => { onChange(maxWeekStart); setOpen(false); }}
+                className="mt-3 w-full text-xs font-medium text-indigo-600 hover:text-indigo-700 py-1.5 rounded-lg hover:bg-indigo-50 transition border border-transparent hover:border-indigo-100"
+              >
+                ↩ Jump to current week
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Timesheet() {
   const [view, setView] = useState<"weekly" | "daily">("weekly");
   const [projects, setProjects]   = useState<Project[]>([]);
@@ -72,16 +242,23 @@ export default function Timesheet() {
   /* snapshot of existing rows at modal-open time, keyed by entry id */
   const originalRowsRef = useRef<Record<number, FormRow>>({});
 
-  const today     = new Date(); today.setHours(0, 0, 0, 0);
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const days      = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
+  const today            = new Date(); today.setHours(0, 0, 0, 0);
+  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today, { weekStartsOn: 1 }));
+  const days        = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
   const isFutureDay = (d: Date) => isAfter(d, today);
 
-  useEffect(() => {
-    loadProjects();
-    loadEntriesForWeek(weekStart);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const isCurrentWeek = isSameDay(weekStart, currentWeekStart);
+
+  const goToPrevWeek = () => setWeekStart((ws) => subDays(ws, 7));
+  const goToNextWeek = () => {
+    if (isCurrentWeek) return;
+    setWeekStart((ws) => addDays(ws, 7));
+  };
+
+  useEffect(() => { loadProjects(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadEntriesForWeek(weekStart); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProjects = async () => {
     try {
@@ -350,6 +527,33 @@ export default function Timesheet() {
       <AnimatePresence mode="wait">
         {view === "weekly" && (
           <motion.div key="weekly" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+
+            {/* ── Week navigation bar ── */}
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 mb-4">
+              <button
+                onClick={goToPrevWeek}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition font-medium"
+              >
+                <ChevronLeft size={16} />
+                Prev week
+              </button>
+
+              <WeekPicker
+                value={weekStart}
+                maxWeekStart={currentWeekStart}
+                onChange={setWeekStart}
+              />
+
+              <button
+                onClick={goToNextWeek}
+                disabled={isCurrentWeek}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Next week
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
             <div className="grid grid-cols-7 gap-3">
               {days.map((day) => {
                 const dayEntries  = getEntriesForDay(day);
@@ -410,7 +614,7 @@ export default function Timesheet() {
             </div>
 
             {/* Weekly summary */}
-            <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+            <div key={weekStart.toISOString()} className="mt-4 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-6">
                 <div>
                   <p className="text-xs text-slate-400">Week total</p>

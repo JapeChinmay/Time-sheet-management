@@ -10,6 +10,7 @@ import {
 import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, parseISO } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
 import SmartLoader from "@/components/ui/SmartLoader";
 
 /* ─── types ─── */
@@ -232,11 +233,10 @@ export default function PMTimesheetApprovalPage() {
               className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition">
               <ChevronLeft size={16} />
             </button>
-            <input
-              type="date"
+            <DatePicker
               value={isoDate(dayDate)}
-              onChange={(e) => setDayDate(e.target.value ? parseISO(e.target.value) : new Date())}
-              className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              onChange={(val) => setDayDate(val ? parseISO(val) : new Date())}
+              placeholder="Pick date"
             />
             <button onClick={() => setDayDate((d) => addDays(d, 1))}
               className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition">

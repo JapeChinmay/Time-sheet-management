@@ -125,7 +125,7 @@ export default function DashboardClient({ name }: { name: string }) {
   const pendingCount  = useMemo(() => timesheets.filter(t => t.status === "PENDING").length,  [timesheets]);
   const rejectedCount = useMemo(() => timesheets.filter(t => t.status === "REJECTED").length, [timesheets]);
 
-  const activeProjects = useMemo(() => projects.filter(p => p.status === "ACTIVE"),     [projects]);
+  const activeProjects = useMemo(() => projects.filter(p => p.status === "ACTIVE" || p.status === "CREATED"), [projects]);
   const activeTasks    = useMemo(() => tasks.filter(t => t.status !== "COMPLETED"),       [tasks]);
   const totalHoursAll  = useMemo(() => timesheets.reduce((s, t) => s + t.hours, 0),      [timesheets]);
 

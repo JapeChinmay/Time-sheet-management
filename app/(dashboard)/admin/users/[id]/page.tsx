@@ -6,7 +6,9 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Clock, Briefcase, CheckCircle2, XCircle,
   AlertCircle, TrendingUp, LogIn, Globe, Monitor, Calendar, Pencil, X, Check,
+  KeyRound, Eye, EyeOff,
 } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import {
   format, startOfWeek, addDays, subWeeks, isSameDay,
   parseISO, getDay,
@@ -78,10 +80,28 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  /* module inline edit */
-  const [editingModule, setEditingModule] = useState(false);
-  const [moduleVal, setModuleVal] = useState("");
-  const [savingModule, setSavingModule] = useState(false);
+  /* edit profile modal */
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "" });
+  const [savingEdit, setSavingEdit]       = useState(false);
+  const [editErr, setEditErr]             = useState("");
+
+  /* password change */
+  const [showPwdModal, setShowPwdModal]   = useState(false);
+  const [newPwd, setNewPwd]               = useState("");
+  const [confirmPwd, setConfirmPwd]       = useState("");
+  const [showNewPwd, setShowNewPwd]       = useState(false);
+  const [showConfPwd, setShowConfPwd]     = useState(false);
+  const [savingPwd, setSavingPwd]         = useState(false);
+  const [pwdErr, setPwdErr]               = useState("");
+  const [pwdSuccess, setPwdSuccess]       = useState(false);
+
+  /* caller role (for showing password change button) */
+  const callerRole = (() => {
+    try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).role ?? ""; }
+    catch { return ""; }
+  })();
+  const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
   useEffect(() => {
     if (!id) return;
@@ -92,13 +112,51 @@ export default function UserDetailPage() {
     ])
       .then(([u, ts, lg]) => {
         setUser(u);
-        setModuleVal(u.module ?? "");
         setTimesheets(norm(ts));
         setLogs(norm(lg));
       })
       .catch((e) => setError(e.message ?? "Failed to load user."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const changePassword = async () => {
+    setPwdErr("");
+    if (newPwd.length < 6)        { setPwdErr("Password must be at least 6 characters."); return; }
+    if (newPwd !== confirmPwd)    { setPwdErr("Passwords do not match."); return; }
+    setSavingPwd(true);
+    try {
+      await apiFetch(`/users/${id}`, { method: "PATCH", body: JSON.stringify({ password: newPwd }) });
+      setPwdSuccess(true);
+      setNewPwd(""); setConfirmPwd("");
+      setTimeout(() => { setShowPwdModal(false); setPwdSuccess(false); }, 1200);
+    } catch (e: any) {
+      setPwdErr(e.message ?? "Failed to update password.");
+    } finally {
+      setSavingPwd(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setEditErr("");
+    if (!editForm.name.trim()) { setEditErr("Name is required."); return; }
+    setSavingEdit(true);
+    try {
+      const updated = await apiFetch(`/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name:        editForm.name.trim(),
+          designation: editForm.designation.trim() || null,
+          module:      editForm.module || null,
+        }),
+      });
+      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module } : u);
+      setShowEditModal(false);
+    } catch (e: any) {
+      setEditErr(e.message ?? "Failed to update profile.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   if (loading) return <SmartLoader name="Loading…" />;
   if (error || !user) {
@@ -198,28 +256,211 @@ export default function UserDetailPage() {
 
           {/* SAP Module */}
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            {!editingModule ? (
-              <>
-                {user.module ? (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
-                    {MODULE_LABEL[user.module] ?? user.module}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400 italic">No SAP module assigned</span>
-                )}
-                <button
-                  onClick={() => { setModuleVal(user.module ?? ""); setEditingModule(true); }}
-                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
-                >
-                  <Pencil size={11} /> Edit module
-                </button>
-              </>
+            {user.module ? (
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                {MODULE_LABEL[user.module] ?? user.module}
+              </span>
             ) : (
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="w-40">
+              <span className="text-xs text-slate-400 italic">No SAP module assigned</span>
+            )}
+          </div>
+
+          {/* Admin actions */}
+          {isAdmin && (
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4">
+              <button
+                onClick={() => {
+                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "" });
+                  setEditErr("");
+                  setShowEditModal(true);
+                }}
+                className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition"
+              >
+                <Pencil size={12} /> Edit Profile
+              </button>
+              <button
+                onClick={() => { setShowPwdModal(true); setPwdErr(""); setPwdSuccess(false); setNewPwd(""); setConfirmPwd(""); }}
+                className="flex items-center gap-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 transition"
+              >
+                <KeyRound size={12} /> Change Password
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Change Password Modal ── */}
+      <AnimatePresence>
+        {showPwdModal && (
+          <motion.div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowPwdModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center">
+                    <KeyRound size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-slate-900 text-sm">Change Password</h2>
+                    <p className="text-xs text-slate-400">{user.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowPwdModal(false)} className="text-slate-400 hover:text-slate-600 transition">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                {/* New password */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPwd ? "text" : "password"}
+                      value={newPwd}
+                      onChange={(e) => setNewPwd(e.target.value)}
+                      placeholder="Min. 6 characters"
+                      className="w-full border border-slate-200 px-3 py-2.5 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPwd((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    >
+                      {showNewPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {newPwd.length > 0 && newPwd.length < 6 && (
+                    <p className="text-xs text-red-500 mt-1">At least 6 characters required.</p>
+                  )}
+                </div>
+
+                {/* Confirm password */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Confirm Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfPwd ? "text" : "password"}
+                      value={confirmPwd}
+                      onChange={(e) => setConfirmPwd(e.target.value)}
+                      placeholder="Re-enter password"
+                      className="w-full border border-slate-200 px-3 py-2.5 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfPwd((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    >
+                      {showConfPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {confirmPwd.length > 0 && newPwd !== confirmPwd && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
+                  )}
+                </div>
+
+                {pwdErr && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{pwdErr}</p>
+                )}
+                {pwdSuccess && (
+                  <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> Password updated successfully!
+                  </p>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 flex gap-3">
+                <button
+                  onClick={changePassword}
+                  disabled={savingPwd || newPwd.length < 6 || newPwd !== confirmPwd}
+                  className="flex-1 bg-rose-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-rose-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {savingPwd
+                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+                    : <><KeyRound size={14} /> Update Password</>
+                  }
+                </button>
+                <button
+                  onClick={() => setShowPwdModal(false)}
+                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Edit Profile Modal ── */}
+      <AnimatePresence>
+        {showEditModal && (
+          <motion.div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowEditModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <Pencil size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-slate-900 text-sm">Edit Profile</h2>
+                    <p className="text-xs text-slate-400">{user.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600 transition">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Full Name *</label>
+                  <input
+                    autoFocus
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. John Doe"
+                    className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                  />
+                </div>
+
+                {/* Designation */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Designation <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <input
+                    value={editForm.designation}
+                    onChange={(e) => setEditForm((f) => ({ ...f, designation: e.target.value }))}
+                    placeholder="e.g. Senior SAP Consultant"
+                    className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+                  />
+                </div>
+
+                {/* SAP Module */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">SAP Module <span className="text-slate-400 font-normal">(optional)</span></label>
                   <Combobox
-                    value={moduleVal}
-                    onChange={setModuleVal}
+                    value={editForm.module}
+                    onChange={(val) => setEditForm((f) => ({ ...f, module: val }))}
                     placeholder="— No module —"
                     options={[
                       { value: "", label: "No module" },
@@ -227,32 +468,35 @@ export default function UserDetailPage() {
                     ]}
                   />
                 </div>
+
+                {editErr && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editErr}</p>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 flex gap-3">
                 <button
-                  disabled={savingModule}
-                  onClick={async () => {
-                    setSavingModule(true);
-                    try {
-                      const updated = await apiFetch(`/users/${id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ module: moduleVal || null }),
-                      });
-                      setUser((u) => u ? { ...u, module: updated.module } : u);
-                      setEditingModule(false);
-                    } finally { setSavingModule(false); }
-                  }}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-60"
+                  onClick={saveProfile}
+                  disabled={savingEdit || !editForm.name.trim()}
+                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  <Check size={11} /> {savingModule ? "Saving…" : "Save"}
+                  {savingEdit
+                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+                    : <><Check size={14} /> Save Changes</>
+                  }
                 </button>
-                <button onClick={() => setEditingModule(false)}
-                  className="text-slate-400 hover:text-slate-600">
-                  <X size={14} />
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
+                >
+                  Cancel
                 </button>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Key metrics ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

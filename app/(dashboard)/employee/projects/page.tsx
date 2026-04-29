@@ -10,6 +10,8 @@ import {
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
 
 /* ─── types ─── */
 type Member = {
@@ -24,7 +26,7 @@ type Project = {
   id: number;
   name: string;
   description?: string | null;
-  status: "ACTIVE" | "INACTIVE";
+  status: "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED";
   clientName?: string | null;
   sourceCompany?: string | null;
   projectType?: string | null;
@@ -68,7 +70,7 @@ const SHIFT_TYPES   = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
 const PROJECT_TYPES = ["FIXED", "TIME_AND_MATERIAL", "RETAINER", "INTERNAL"] as const;
 
 const EMPTY_FORM = {
-  name: "", description: "", status: "ACTIVE" as "ACTIVE" | "INACTIVE",
+  name: "", description: "", status: "CREATED" as "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED",
   startDate: "", endDate: "", sourceCompany: "", clientName: "",
   projectType: "", shiftType: "", shiftStartTime: "", shiftEndTime: "",
   breakTime: "", location: "",
@@ -152,7 +154,7 @@ export default function ProjectsPage() {
   const [createError, setCreateError] = useState("");
   const [form,        setForm]        = useState(EMPTY_FORM);
   const [search,      setSearch]      = useState("");
-  const [statusFilter,setStatusFilter]= useState<"ALL" | "ACTIVE" | "INACTIVE">("ACTIVE");
+  const [statusFilter,setStatusFilter]= useState<"ALL" | "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED">("ALL");
 
   const loadProjects = async () => {
     try {
@@ -226,8 +228,10 @@ export default function ProjectsPage() {
   if (loading) return <SmartLoader name={getUser().name} />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
-  const activeCount   = projects.filter(p => p.status === "ACTIVE").length;
-  const inactiveCount = projects.filter(p => p.status === "INACTIVE").length;
+  const createdCount   = projects.filter(p => p.status === "CREATED").length;
+  const activeCount    = projects.filter(p => p.status === "ACTIVE").length;
+  const inactiveCount  = projects.filter(p => p.status === "INACTIVE").length;
+  const completedCount = projects.filter(p => p.status === "COMPLETED").length;
 
   return (
     <div className="space-y-6">
@@ -238,10 +242,10 @@ export default function ProjectsPage() {
           <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">Projects</h1>
           <p className="text-sm text-slate-500 mt-1">
             {projects.length} project{projects.length !== 1 ? "s" : ""} &nbsp;·&nbsp;
+            {createdCount > 0 && <span className="text-blue-600 font-medium">{createdCount} created &nbsp;·&nbsp;</span>}
             <span className="text-green-600 font-medium">{activeCount} active</span>
-            {inactiveCount > 0 && (
-              <span className="text-slate-400"> · {inactiveCount} inactive</span>
-            )}
+            {inactiveCount > 0 && <span className="text-slate-400"> · {inactiveCount} inactive</span>}
+            {completedCount > 0 && <span className="text-purple-600 font-medium"> · {completedCount} completed</span>}
           </p>
         </div>
         <button
@@ -266,20 +270,34 @@ export default function ProjectsPage() {
         </div>
 
         {/* Status pills */}
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-          {(["ALL", "ACTIVE", "INACTIVE"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition ${
-                statusFilter === s
-                  ? "bg-white text-slate-900 shadow"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {s === "ALL" ? `All (${projects.length})` : s === "ACTIVE" ? `Active (${activeCount})` : `Inactive (${inactiveCount})`}
-            </button>
-          ))}
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-wrap">
+          {(["ALL", "CREATED", "ACTIVE", "INACTIVE", "COMPLETED"] as const).map((s) => {
+            const count =
+              s === "ALL"       ? projects.length :
+              s === "CREATED"   ? createdCount :
+              s === "ACTIVE"    ? activeCount :
+              s === "INACTIVE"  ? inactiveCount :
+              completedCount;
+            const label =
+              s === "ALL"       ? "All" :
+              s === "CREATED"   ? "Created" :
+              s === "ACTIVE"    ? "Active" :
+              s === "INACTIVE"  ? "Inactive" :
+              "Completed";
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                  statusFilter === s
+                    ? "bg-white text-slate-900 shadow"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -363,7 +381,12 @@ export default function ProjectsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Status">
                       <Combobox value={form.status} onChange={setField("status")}
-                        options={[{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }]} />
+                        options={[
+                          { value: "CREATED",   label: "Created"   },
+                          { value: "ACTIVE",    label: "Active"    },
+                          { value: "INACTIVE",  label: "Inactive"  },
+                          { value: "COMPLETED", label: "Completed" },
+                        ]} />
                     </Field>
                     <Field label="Project Type">
                       <Combobox value={form.projectType} onChange={setField("projectType")} placeholder="— Select —"
@@ -389,10 +412,10 @@ export default function ProjectsPage() {
                 <Section title="Timeline">
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Start Date">
-                      <input type="date" value={form.startDate} onChange={set("startDate")} className={INPUT} />
+                      <DatePicker value={form.startDate} onChange={setField("startDate")} placeholder="Start date" />
                     </Field>
                     <Field label="End Date">
-                      <input type="date" value={form.endDate} onChange={set("endDate")} className={INPUT} />
+                      <DatePicker value={form.endDate} onChange={setField("endDate")} placeholder="End date" min={form.startDate || undefined} />
                     </Field>
                   </div>
                 </Section>
@@ -407,10 +430,10 @@ export default function ProjectsPage() {
                       <input type="number" min={0} value={form.breakTime} onChange={set("breakTime")} placeholder="30" className={INPUT} />
                     </Field>
                     <Field label="Shift Start">
-                      <input type="time" value={form.shiftStartTime} onChange={set("shiftStartTime")} className={INPUT} />
+                      <TimePicker value={form.shiftStartTime} onChange={setField("shiftStartTime")} placeholder="Start time" />
                     </Field>
                     <Field label="Shift End">
-                      <input type="time" value={form.shiftEndTime} onChange={set("shiftEndTime")} className={INPUT} />
+                      <TimePicker value={form.shiftEndTime} onChange={setField("shiftEndTime")} placeholder="End time" />
                     </Field>
                   </div>
                 </Section>
@@ -664,15 +687,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const STATUS_BADGE_STYLES: Record<string, { cls: string; dot: string; label: string }> = {
+  CREATED:   { cls: "bg-blue-50 text-blue-700",    dot: "bg-blue-400",    label: "Created"   },
+  ACTIVE:    { cls: "bg-green-100 text-green-700",  dot: "bg-green-500",   label: "Active"    },
+  INACTIVE:  { cls: "bg-slate-100 text-slate-500",  dot: "bg-slate-400",   label: "Inactive"  },
+  COMPLETED: { cls: "bg-purple-50 text-purple-700", dot: "bg-purple-400",  label: "Completed" },
+};
+
 function StatusBadge({ status }: { status: string }) {
-  return status === "ACTIVE" ? (
-    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">
-      <span className="w-1 h-1 rounded-full bg-green-500 inline-block" />
-      Active
-    </span>
-  ) : (
-    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-500">
-      Inactive
+  const meta = STATUS_BADGE_STYLES[status] ?? STATUS_BADGE_STYLES.INACTIVE;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${meta.cls}`}>
+      <span className={`w-1 h-1 rounded-full inline-block ${meta.dot}`} />
+      {meta.label}
     </span>
   );
 }
