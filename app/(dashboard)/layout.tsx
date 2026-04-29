@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 
@@ -17,6 +18,7 @@ import {
   X,
   ListTodo,
   ScrollText,
+  ClipboardCheck,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -25,19 +27,34 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [role, setRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [isPM, setIsPM] = useState(false);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         setRole(payload.role);
+        setUserId(payload.sub ?? payload.id ?? null);
       } catch {}
     }
   }, []);
+
+  /* Check if this user manages any project (to show the Manager section) */
+  useEffect(() => {
+    if (!userId) return;
+    apiFetch(`/projects?filter=projectManagerId||$eq||${userId}&limit=1`)
+      .then((res) => {
+        const data = Array.isArray(res) ? res : res.data ?? [];
+        setIsPM(data.length > 0);
+      })
+      .catch(() => {});
+  }, [userId]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -104,6 +121,20 @@ export default function DashboardLayout({
             active={pathname.startsWith("/employee/tasks")}
           />
 
+          {/* Manager section — visible to any user who manages at least one project */}
+          {isPM && (
+            <>
+              <div className="border-t border-slate-200 my-3" />
+              <p className="text-xs text-slate-400 uppercase px-2">Manager</p>
+              <SidebarItem
+                icon={<ClipboardCheck size={16} />}
+                label="Timesheet Approval"
+                href="/manager/timesheets"
+                active={pathname.startsWith("/manager/timesheets")}
+              />
+            </>
+          )}
+
           {(role === "ADMIN" || role === "SUPERADMIN") && (
             <>
               <div className="border-t border-slate-200 my-3" />
@@ -124,6 +155,13 @@ export default function DashboardLayout({
                 label="Users"
                 href="/employee/users"
                 active={isActive("/employee/users")}
+              />
+
+              <SidebarItem
+                icon={<ClipboardCheck size={16} />}
+                label="Timesheet Approval"
+                href="/manager/timesheets"
+                active={pathname.startsWith("/manager/timesheets")}
               />
 
               <SidebarItem

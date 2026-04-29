@@ -13,17 +13,33 @@ import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 import { parseUTC, fmtDate as fmtDateUTC } from "@/lib/date";
 
-type UserOption = { id: number; name: string; email: string; role: string; designation?: string };
+type UserOption = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
 type Member = UserOption;
 type TimesheetEntry = { id: number; date: string; hours: number; description?: string; status: string; user?: { name: string } };
 type TaskItem = {
   id: number;
   name: string;
   status: "ACTIVE" | "COMPLETED";
+  module?: string | null;
   projectId: number;
   createdAt: string;
   assignees?: UserOption[];
 };
+
+const SAP_MODULES = [
+  { value: "SAP_BTP",  label: "SAP BTP"  },
+  { value: "SAP_MM",   label: "SAP MM"   },
+  { value: "SAP_FICO", label: "SAP FICO" },
+  { value: "SAP_SF",   label: "SAP SF"   },
+  { value: "SAP_SD",   label: "SAP SD"   },
+  { value: "SAP_HCM",  label: "SAP HCM"  },
+  { value: "SAP_ABAP", label: "SAP ABAP" },
+  { value: "SAP_PS",   label: "SAP PS"   },
+] as const;
+
+const MODULE_LABEL: Record<string, string> = Object.fromEntries(
+  SAP_MODULES.map((m) => [m.value, m.label])
+);
 
 type Project = {
   id: number;
@@ -313,7 +329,7 @@ export default function ProjectDetailPage() {
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tasks</p>
               </div>
               {isAdmin && (
-                <button onClick={() => setShowAddTaskModal(true)}
+                <button onClick={async () => { await ensureUsers(); setShowAddTaskModal(true); }}
                   className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                   <Plus size={12} /> Add Task
                 </button>
@@ -353,7 +369,14 @@ export default function ProjectDetailPage() {
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${done ? "line-through text-slate-400" : "text-slate-900"}`}>{t.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`text-sm font-medium truncate ${done ? "line-through text-slate-400" : "text-slate-900"}`}>{t.name}</p>
+                          {t.module && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 flex-shrink-0">
+                              {MODULE_LABEL[t.module] ?? t.module}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-400 mt-0.5">
                           {t.assignees?.length
                             ? `${t.assignees.map((a) => a.name).join(", ")}`
@@ -441,7 +464,7 @@ export default function ProjectDetailPage() {
       </AnimatePresence>
       <AnimatePresence>
         {showAddTaskModal && (
-          <AddTaskModal projectId={project.id}
+          <AddTaskModal projectId={project.id} allUsers={allUsers}
             onClose={() => setShowAddTaskModal(false)}
             onSaved={async () => { setShowAddTaskModal(false); await loadProject(); }} />
         )}
@@ -462,33 +485,115 @@ export default function ProjectDetailPage() {
 /* ─────────────────────────────────────────
    Add Task Modal
 ───────────────────────────────────────── */
-function AddTaskModal({ projectId, onClose, onSaved }: {
-  projectId: number; onClose: () => void; onSaved: () => void;
+function AddTaskModal({ projectId, allUsers, onClose, onSaved }: {
+  projectId: number; allUsers: UserOption[]; onClose: () => void; onSaved: () => void;
 }) {
-  const [name, setName]       = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [err, setErr]         = useState("");
+  const [name, setName]         = useState("");
+  const [module, setModule]     = useState("");
+  const [search, setSearch]     = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving]     = useState(false);
+  const [err, setErr]           = useState("");
+
+  /* Filter users by selected module, then by search */
+  const moduleUsers = module ? allUsers.filter((u) => u.module === module) : allUsers;
+  const filtered    = moduleUsers.filter((u) =>
+    !search.trim() ||
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggle = (id: number) =>
+    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const save = async () => {
     if (!name.trim()) { setErr("Task name is required."); return; }
     setSaving(true); setErr("");
     try {
-      await apiFetch("/tasks", { method: "POST", body: JSON.stringify({ name: name.trim(), projectId }) });
+      const body: Record<string, any> = { name: name.trim(), projectId };
+      if (module) body.module = module;
+      const task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
+      /* assign selected users */
+      await Promise.all(
+        [...selected].map((userId) =>
+          apiFetch(`/tasks/${task.id}/assignees`, { method: "POST", body: JSON.stringify({ userId }) })
+        )
+      );
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Failed to create task."); setSaving(false); }
   };
 
   return (
     <Backdrop onClose={onClose}>
-      <ModalBox>
+      <ModalBox wide>
         <ModalHeader title="Add Task" onClose={onClose} />
-        <div className="px-6 py-4 space-y-3">
+        <div className="px-6 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
           <Field label="Task Name *">
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && save()}
-              placeholder="e.g. Implement login flow"
+              placeholder="e.g. Configure SAP BTP tenant"
               className={INPUT} />
           </Field>
+
+          <Field label="SAP Module">
+            <Combobox
+              value={module}
+              onChange={(val) => { setModule(val); setSelected(new Set()); }}
+              placeholder="— No module —"
+              searchable
+              options={[
+                { value: "", label: "No module" },
+                ...SAP_MODULES.map((m) => ({ value: m.value, label: m.label })),
+              ]}
+            />
+          </Field>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              Assign To
+              {selected.size > 0 && (
+                <span className="ml-2 font-semibold text-indigo-600">{selected.size} selected</span>
+              )}
+              {module && (
+                <span className="ml-2 font-normal text-slate-400">
+                  — {MODULE_LABEL[module]} members only
+                  {moduleUsers.length === 0 && " (none)"}
+                </span>
+              )}
+            </label>
+            <input
+              placeholder="Search users…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${INPUT} mb-2`}
+            />
+            <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-44 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-5">
+                  {module && moduleUsers.length === 0
+                    ? `No users in ${MODULE_LABEL[module]} yet`
+                    : "No users found"}
+                </p>
+              ) : filtered.map((u) => {
+                const checked = selected.has(u.id);
+                return (
+                  <label key={u.id}
+                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 transition ${checked ? "bg-indigo-50/60" : ""}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(u.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
+                      <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
+                      {u.role}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           {err && <p className="text-xs text-red-500">{err}</p>}
         </div>
         <ModalFooter onCancel={onClose} onSave={save} saving={saving} saveLabel="Create Task" />

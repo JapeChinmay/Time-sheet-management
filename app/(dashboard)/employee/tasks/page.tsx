@@ -17,13 +17,29 @@ type Task = {
   id: number;
   name: string;
   status: "ACTIVE" | "COMPLETED";
+  module?: string | null;
   projectId: number;
   createdAt: string;
   project?: { id: number; name: string };
   assignees?: Assignee[];
 };
 type Project = { id: number; name: string };
-type User    = { id: number; name: string; email: string; role: string; designation?: string };
+type User    = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
+
+const SAP_MODULES = [
+  { value: "SAP_BTP",  label: "SAP BTP"  },
+  { value: "SAP_MM",   label: "SAP MM"   },
+  { value: "SAP_FICO", label: "SAP FICO" },
+  { value: "SAP_SF",   label: "SAP SF"   },
+  { value: "SAP_SD",   label: "SAP SD"   },
+  { value: "SAP_HCM",  label: "SAP HCM"  },
+  { value: "SAP_ABAP", label: "SAP ABAP" },
+  { value: "SAP_PS",   label: "SAP PS"   },
+] as const;
+
+const MODULE_LABEL: Record<string, string> = Object.fromEntries(
+  SAP_MODULES.map((m) => [m.value, m.label])
+);
 
 type Filter = "ALL" | "ACTIVE" | "COMPLETED";
 
@@ -51,7 +67,7 @@ export default function TasksPage() {
   const [showCreate, setShowCreate]       = useState(false);
   const [projects, setProjects]           = useState<Project[]>([]);
   const [users, setUsers]                 = useState<User[]>([]);
-  const [createForm, setCreateForm]       = useState({ projectId: "", name: "" });
+  const [createForm, setCreateForm]       = useState({ projectId: "", name: "", module: "" });
   const [selectedAssignees, setSelectedAssignees] = useState<Set<number>>(new Set());
   const [userSearch, setUserSearch]       = useState("");
   const [creating, setCreating]           = useState(false);
@@ -87,7 +103,7 @@ export default function TasksPage() {
 
   /* ── Create task modal helpers ── */
   const openCreateModal = async () => {
-    setCreateForm({ projectId: "", name: "" });
+    setCreateForm({ projectId: "", name: "", module: "" });
     setSelectedAssignees(new Set());
     setUserSearch("");
     setCreateError("");
@@ -119,9 +135,15 @@ export default function TasksPage() {
     setCreating(true);
     setCreateError("");
     try {
+      const body: Record<string, any> = {
+        name: createForm.name.trim(),
+        projectId: Number(createForm.projectId),
+      };
+      if (createForm.module) body.module = createForm.module;
+
       const task: Task = await apiFetch("/tasks", {
         method: "POST",
-        body: JSON.stringify({ name: createForm.name.trim(), projectId: Number(createForm.projectId) }),
+        body: JSON.stringify(body),
       });
 
       /* assign selected users */
@@ -164,7 +186,12 @@ export default function TasksPage() {
   const totalCnt     = tasks.length;
   const pct          = totalCnt > 0 ? Math.round((completedCnt / totalCnt) * 100) : 0;
 
-  const filteredUsers = users.filter((u) =>
+  /* Filter users by selected module first, then by search string */
+  const moduleFilteredUsers = createForm.module
+    ? users.filter((u) => u.module === createForm.module)
+    : users;
+
+  const filteredUsers = moduleFilteredUsers.filter((u) =>
     !userSearch.trim() ||
     u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.email.toLowerCase().includes(userSearch.toLowerCase())
@@ -306,6 +333,12 @@ export default function TasksPage() {
                         </span>
                       )}
 
+                      {task.module && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 flex-shrink-0">
+                          {MODULE_LABEL[task.module] ?? task.module}
+                        </span>
+                      )}
+
                       {(task.assignees?.length ?? 0) > 0 && (
                         <span className="flex items-center gap-1 text-xs text-slate-400">
                           <Users size={11} />
@@ -395,6 +428,26 @@ export default function TasksPage() {
                   />
                 </div>
 
+                {/* SAP Module */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                    SAP Module
+                  </label>
+                  <Combobox
+                    value={createForm.module}
+                    onChange={(val) => {
+                      setCreateForm((f) => ({ ...f, module: val }));
+                      setSelectedAssignees(new Set()); // clear assignees when module changes
+                    }}
+                    placeholder="— Select module (optional) —"
+                    searchable
+                    options={[
+                      { value: "", label: "No module" },
+                      ...SAP_MODULES.map((m) => ({ value: m.value, label: m.label })),
+                    ]}
+                  />
+                </div>
+
                 {/* Assignees */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
@@ -402,6 +455,12 @@ export default function TasksPage() {
                     {selectedAssignees.size > 0 && (
                       <span className="ml-2 normal-case font-medium text-indigo-600">
                         {selectedAssignees.size} selected
+                      </span>
+                    )}
+                    {createForm.module && (
+                      <span className="ml-2 normal-case font-normal text-slate-400">
+                        — filtered by {MODULE_LABEL[createForm.module]}
+                        {moduleFilteredUsers.length === 0 && " (no members)"}
                       </span>
                     )}
                   </label>
@@ -425,7 +484,11 @@ export default function TasksPage() {
                   {/* User list */}
                   <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
                     {filteredUsers.length === 0 ? (
-                      <p className="text-sm text-slate-400 text-center py-6">No users found</p>
+                      <p className="text-sm text-slate-400 text-center py-6">
+                        {createForm.module && moduleFilteredUsers.length === 0
+                          ? `No users assigned to ${MODULE_LABEL[createForm.module]} yet`
+                          : "No users found"}
+                      </p>
                     ) : (
                       filteredUsers.map((u) => {
                         const checked = selectedAssignees.has(u.id);

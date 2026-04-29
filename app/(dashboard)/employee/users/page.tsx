@@ -12,11 +12,18 @@ type Project = {
   name: string;
 };
 
+const MODULE_LABEL: Record<string, string> = {
+  SAP_BTP: "SAP BTP", SAP_MM: "SAP MM", SAP_FICO: "SAP FICO",
+  SAP_SF: "SAP SF", SAP_SD: "SAP SD", SAP_HCM: "SAP HCM",
+  SAP_ABAP: "SAP ABAP", SAP_PS: "SAP PS",
+};
+
 type User = {
   id: number;
   name: string;
   email: string;
   role: string;
+  module?: string | null;
   lastActive?: string | null;
   projectId?: number | null;
   totalHours?: number;
@@ -208,9 +215,14 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                   {u.email}
                 </p>
 
-                <p className="text-xs text-slate-400">
-                  Role: {u.role}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-slate-400">Role: {u.role}</p>
+                  {u.module && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                      {MODULE_LABEL[u.module] ?? u.module}
+                    </span>
+                  )}
+                </div>
 
                 <div className="text-sm">
                   <span className="text-slate-400">

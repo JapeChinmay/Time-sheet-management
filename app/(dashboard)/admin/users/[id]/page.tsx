@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Clock, Briefcase, CheckCircle2, XCircle,
-  AlertCircle, TrendingUp, LogIn, Globe, Monitor, Calendar,
+  AlertCircle, TrendingUp, LogIn, Globe, Monitor, Calendar, Pencil, X, Check,
 } from "lucide-react";
 import {
   format, startOfWeek, addDays, subWeeks, isSameDay,
@@ -13,14 +13,29 @@ import {
 } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
+import Combobox from "@/components/ui/Combobox";
 import { parseUTC } from "@/lib/date";
 
 /* ─── types ─── */
 type UserDetail = {
   id: number; name: string; email: string; role: string;
-  status: string; designation?: string;
+  status: string; designation?: string; module?: string | null;
   manager?: { name: string };
 };
+
+const SAP_MODULES = [
+  { value: "SAP_BTP",  label: "SAP BTP"  },
+  { value: "SAP_MM",   label: "SAP MM"   },
+  { value: "SAP_FICO", label: "SAP FICO" },
+  { value: "SAP_SF",   label: "SAP SF"   },
+  { value: "SAP_SD",   label: "SAP SD"   },
+  { value: "SAP_HCM",  label: "SAP HCM"  },
+  { value: "SAP_ABAP", label: "SAP ABAP" },
+  { value: "SAP_PS",   label: "SAP PS"   },
+] as const;
+const MODULE_LABEL: Record<string, string> = Object.fromEntries(
+  SAP_MODULES.map((m) => [m.value, m.label])
+);
 type Timesheet = {
   id: number; date: string; hours: number; status: string;
   description?: string; projectId: number;
@@ -63,6 +78,11 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  /* module inline edit */
+  const [editingModule, setEditingModule] = useState(false);
+  const [moduleVal, setModuleVal] = useState("");
+  const [savingModule, setSavingModule] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     Promise.all([
@@ -72,6 +92,7 @@ export default function UserDetailPage() {
     ])
       .then(([u, ts, lg]) => {
         setUser(u);
+        setModuleVal(u.module ?? "");
         setTimesheets(norm(ts));
         setLogs(norm(lg));
       })
@@ -174,6 +195,62 @@ export default function UserDetailPage() {
           <p className="text-sm text-slate-500 mt-0.5">{user.email}</p>
           {user.designation && <p className="text-xs text-slate-400 mt-0.5">{user.designation}</p>}
           {user.manager && <p className="text-xs text-slate-400 mt-0.5">Manager: {user.manager.name}</p>}
+
+          {/* SAP Module */}
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            {!editingModule ? (
+              <>
+                {user.module ? (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                    {MODULE_LABEL[user.module] ?? user.module}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400 italic">No SAP module assigned</span>
+                )}
+                <button
+                  onClick={() => { setModuleVal(user.module ?? ""); setEditingModule(true); }}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
+                >
+                  <Pencil size={11} /> Edit module
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="w-40">
+                  <Combobox
+                    value={moduleVal}
+                    onChange={setModuleVal}
+                    placeholder="— No module —"
+                    options={[
+                      { value: "", label: "No module" },
+                      ...SAP_MODULES.map((m) => ({ value: m.value, label: m.label })),
+                    ]}
+                  />
+                </div>
+                <button
+                  disabled={savingModule}
+                  onClick={async () => {
+                    setSavingModule(true);
+                    try {
+                      const updated = await apiFetch(`/users/${id}`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ module: moduleVal || null }),
+                      });
+                      setUser((u) => u ? { ...u, module: updated.module } : u);
+                      setEditingModule(false);
+                    } finally { setSavingModule(false); }
+                  }}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-60"
+                >
+                  <Check size={11} /> {savingModule ? "Saving…" : "Save"}
+                </button>
+                <button onClick={() => setEditingModule(false)}
+                  className="text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
