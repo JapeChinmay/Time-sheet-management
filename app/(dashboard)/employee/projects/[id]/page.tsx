@@ -19,7 +19,7 @@ type TimesheetEntry = { id: number; date: string; hours: number; description?: s
 type TaskItem = {
   id: number;
   name: string;
-  status: "CREATED" | "WORK_IN_PROGRESS" | "COMPLETED";
+  status: "CREATED" | "ASSIGNED" | "WORK_IN_PROGRESS" | "ON_HOLD" | "EXTERNAL_DEPENDENCY" | "COMPLETED";
   module?: string | null;
   projectId: number;
   createdAt: string;

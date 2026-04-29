@@ -37,7 +37,7 @@ type Task = {
   id: number;
   name: string;
   projectId: number;
-  status: "CREATED" | "WORK_IN_PROGRESS" | "COMPLETED";
+  status: "CREATED" | "ASSIGNED" | "WORK_IN_PROGRESS" | "ON_HOLD" | "EXTERNAL_DEPENDENCY" | "COMPLETED";
   project?: { id: number; name: string } | null;
 };
 
