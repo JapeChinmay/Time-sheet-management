@@ -37,7 +37,7 @@ type Task = {
   id: number;
   name: string;
   projectId: number;
-  status: "ACTIVE" | "COMPLETED";
+  status: "CREATED" | "WORK_IN_PROGRESS" | "COMPLETED";
   project?: { id: number; name: string } | null;
 };
 
@@ -126,7 +126,7 @@ export default function DashboardClient({ name }: { name: string }) {
   const rejectedCount = useMemo(() => timesheets.filter(t => t.status === "REJECTED").length, [timesheets]);
 
   const activeProjects = useMemo(() => projects.filter(p => p.status === "ACTIVE"),     [projects]);
-  const activeTasks    = useMemo(() => tasks.filter(t => t.status === "ACTIVE"),         [tasks]);
+  const activeTasks    = useMemo(() => tasks.filter(t => t.status !== "COMPLETED"),       [tasks]);
   const totalHoursAll  = useMemo(() => timesheets.reduce((s, t) => s + t.hours, 0),      [timesheets]);
 
   /* ── weekly bar data (Mon → Sun) ── */
@@ -449,7 +449,7 @@ export default function DashboardClient({ name }: { name: string }) {
             <ListTodo size={15} className="text-slate-400" />
             <p className="text-sm font-semibold text-slate-900">Assigned Tasks</p>
             <span className="ml-auto text-xs text-slate-400">
-              {activeTasks.length} active · {tasks.filter(t => t.status === "COMPLETED").length} done
+              {activeTasks.length} open · {tasks.filter(t => t.status === "COMPLETED").length} done
             </span>
           </div>
 

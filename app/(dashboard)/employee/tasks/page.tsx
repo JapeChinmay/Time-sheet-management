@@ -13,10 +13,11 @@ import Combobox from "@/components/ui/Combobox";
 import { parseUTC, fmtDate } from "@/lib/date";
 
 type Assignee = { id: number; name: string; email: string; role: string; designation?: string };
+type TaskStatus = "CREATED" | "WORK_IN_PROGRESS" | "COMPLETED";
 type Task = {
   id: number;
   name: string;
-  status: "ACTIVE" | "COMPLETED";
+  status: TaskStatus;
   module?: string | null;
   projectId: number;
   createdAt: string;
@@ -41,7 +42,7 @@ const MODULE_LABEL: Record<string, string> = Object.fromEntries(
   SAP_MODULES.map((m) => [m.value, m.label])
 );
 
-type Filter = "ALL" | "ACTIVE" | "COMPLETED";
+type Filter = "ALL" | "OPEN" | "COMPLETED";
 
 function getCallerRole(): string {
   try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).role ?? ""; }
@@ -89,7 +90,8 @@ export default function TasksPage() {
   }, []);
 
   const toggleStatus = async (task: Task) => {
-    const next = task.status === "ACTIVE" ? "COMPLETED" : "ACTIVE";
+    // Toggle between COMPLETED and CREATED (reopen)
+    const next: TaskStatus = task.status === "COMPLETED" ? "CREATED" : "COMPLETED";
     setUpdating(task.id);
     try {
       await apiFetch(`/tasks/${task.id}`, {
@@ -167,8 +169,10 @@ export default function TasksPage() {
 
   if (loading) return <SmartLoader name={getUser().name} />;
 
+  const isOpen = (s: TaskStatus) => s === "CREATED" || s === "WORK_IN_PROGRESS";
+
   const filtered = tasks.filter((t) => {
-    if (filter === "ACTIVE"    && t.status !== "ACTIVE")    return false;
+    if (filter === "OPEN"      && !isOpen(t.status))        return false;
     if (filter === "COMPLETED" && t.status !== "COMPLETED") return false;
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -181,7 +185,7 @@ export default function TasksPage() {
     return true;
   });
 
-  const activeCnt    = tasks.filter((t) => t.status === "ACTIVE").length;
+  const openCnt      = tasks.filter((t) => isOpen(t.status)).length;
   const completedCnt = tasks.filter((t) => t.status === "COMPLETED").length;
   const totalCnt     = tasks.length;
   const pct          = totalCnt > 0 ? Math.round((completedCnt / totalCnt) * 100) : 0;
@@ -225,7 +229,7 @@ export default function TasksPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         <SummaryCard icon={<ListTodo size={16} />}    label="Total"     value={totalCnt}     color="slate" />
-        <SummaryCard icon={<Circle size={16} />}      label="Active"    value={activeCnt}    color="indigo" />
+        <SummaryCard icon={<Circle size={16} />}      label="Open"      value={openCnt}      color="indigo" />
         <SummaryCard icon={<CheckCircle2 size={16} />} label="Completed" value={completedCnt} color="green" />
       </div>
 
@@ -251,7 +255,7 @@ export default function TasksPage() {
       {/* Filters + search */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-          {(["ALL", "ACTIVE", "COMPLETED"] as Filter[]).map((f) => (
+          {(["ALL", "OPEN", "COMPLETED"] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -259,7 +263,7 @@ export default function TasksPage() {
                 filter === f ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {f === "ALL" ? `All (${totalCnt})` : f === "ACTIVE" ? `Active (${activeCnt})` : `Completed (${completedCnt})`}
+              {f === "ALL" ? `All (${totalCnt})` : f === "OPEN" ? `Open (${openCnt})` : `Completed (${completedCnt})`}
             </button>
           ))}
         </div>
@@ -292,6 +296,7 @@ export default function TasksPage() {
           <AnimatePresence initial={false}>
             {filtered.map((task, i) => {
               const done = task.status === "COMPLETED";
+              const inProgress = task.status === "WORK_IN_PROGRESS";
               return (
                 <motion.div
                   key={task.id}
@@ -357,9 +362,11 @@ export default function TasksPage() {
                   <span className={`flex-shrink-0 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${
                     done
                       ? "bg-green-50 text-green-700 border-green-200"
+                      : inProgress
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
                       : "bg-indigo-50 text-indigo-600 border-indigo-200"
                   }`}>
-                    {done ? "Completed" : "Active"}
+                    {done ? "Completed" : inProgress ? "In Progress" : "Created"}
                   </span>
 
                   <button

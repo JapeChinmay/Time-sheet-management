@@ -7,12 +7,13 @@ import {
   isSameDay, getDay, isAfter,
 } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock, Lock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 
 type Project = { id: number; name: string };
 type Task    = { id: number; name: string; projectId: number };
+type EntryStatus = "PENDING" | "APPROVED" | "REJECTED";
 type Entry   = {
   id?: number;
   date: Date;
@@ -21,6 +22,7 @@ type Entry   = {
   category?: "BENCH" | "LEARNING";
   taskId?: number; taskName?: string;
   hours: number; description?: string;
+  status?: EntryStatus;
 };
 
 const SPECIAL: Record<string, { label: string; sentinel: string; emoji: string }> = {
@@ -32,7 +34,7 @@ const SENTINEL_TO_CATEGORY: Record<string, "BENCH" | "LEARNING"> = {
   __learning__: "LEARNING",
 };
 const isSpecialSentinel = (v: string) => v === "__bench__" || v === "__learning__";
-type FormRow = { id?: number; projectId: string; taskId: string; hours: string; description: string };
+type FormRow = { id?: number; projectId: string; taskId: string; hours: string; description: string; locked?: boolean };
 
 const COLORS = [
   "bg-indigo-50 border-indigo-200 text-indigo-700",
@@ -119,6 +121,7 @@ export default function Timesheet() {
           taskName:    t.task?.name ?? undefined,
           hours:       t.hours,
           description: t.description ?? undefined,
+          status:      (t.status ?? "PENDING") as EntryStatus,
         };
       });
       setEntries((prev) => [
@@ -133,10 +136,24 @@ export default function Timesheet() {
     return date >= ws && date <= we;
   };
 
-  const getEntriesForDay = (date: Date) => entries.filter((e) => isSameDay(e.date, date));
-  const getTotalHours    = (date: Date) => getEntriesForDay(date).reduce((s, e) => s + e.hours, 0);
-  const getColor         = (i: number) => COLORS[i % COLORS.length];
-  const getDotColor      = (i: number) => DOT_COLORS[i % DOT_COLORS.length];
+  const getEntriesForDay   = (date: Date) => entries.filter((e) => isSameDay(e.date, date));
+  const getTotalHours      = (date: Date) => getEntriesForDay(date).reduce((s, e) => s + e.hours, 0);
+  const getColor           = (i: number) => COLORS[i % COLORS.length];
+  const getDotColor        = (i: number) => DOT_COLORS[i % DOT_COLORS.length];
+
+  /** True when ALL existing entries for a day are APPROVED (day is fully locked) */
+  const isDayFullyLocked   = (date: Date) => {
+    const dayEntries = getEntriesForDay(date);
+    return dayEntries.length > 0 && dayEntries.every((e) => e.status === "APPROVED");
+  };
+  /** True when at least one entry for the day is APPROVED */
+  const isDayPartiallyLocked = (date: Date) => getEntriesForDay(date).some((e) => e.status === "APPROVED");
+
+  const STATUS_BADGE: Record<EntryStatus, string> = {
+    PENDING:  "bg-amber-50 text-amber-700 border-amber-200",
+    APPROVED: "bg-green-50 text-green-700 border-green-200",
+    REJECTED: "bg-red-50   text-red-600   border-red-200",
+  };
 
   const openModal = (date: Date) => {
     if (isFutureDay(date)) return;
@@ -153,6 +170,7 @@ export default function Timesheet() {
           taskId:      e.taskId ? String(e.taskId) : "",
           hours:       String(e.hours),
           description: e.description ?? "",
+          locked:      e.status === "APPROVED",   // ← lock approved entries
         }))
       : [{ projectId: "", taskId: "", hours: "", description: "" }];
     setFormRows(rows);
@@ -179,6 +197,7 @@ export default function Timesheet() {
 
   const removeRow = (i: number) => {
     const row = formRows[i];
+    if (row.locked) return;                        // ← block deleting approved entries
     if (row.id) setRemovedIds((prev) => [...prev, row.id!]);
     setFormRows((p) => p.filter((_, idx) => idx !== i));
     setTaskOptions((prev) => {
@@ -210,6 +229,7 @@ export default function Timesheet() {
   };
 
   const deleteEntry = async (entry: Entry) => {
+    if (entry.status === "APPROVED") return;       // ← block deleting approved entries
     if (!entry.id) {
       setEntries((prev) => prev.filter((e) => e !== entry));
       return;
@@ -254,6 +274,7 @@ export default function Timesheet() {
       // patch changed existing rows / post new rows
       await Promise.all(
         formRows.map(async (row) => {
+          if (row.locked) return;                  // ← never touch approved entries
           const hours = Number(row.hours);
           if (!row.projectId || !hours || hours <= 0) return;
           if (!rowHasChanged(row)) return; // skip unchanged existing entries
@@ -331,32 +352,56 @@ export default function Timesheet() {
           <motion.div key="weekly" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <div className="grid grid-cols-7 gap-3">
               {days.map((day) => {
-                const dayEntries = getEntriesForDay(day);
-                const total      = getTotalHours(day);
-                const isFuture   = isFutureDay(day);
-                const isToday    = isSameDay(day, today);
+                const dayEntries  = getEntriesForDay(day);
+                const total       = getTotalHours(day);
+                const isFuture    = isFutureDay(day);
+                const isToday     = isSameDay(day, today);
+                const fullyLocked = isDayFullyLocked(day);
+                /* still clickable when partially locked (can view + add new entries) */
+                const clickable   = !isFuture;
+
                 return (
                   <motion.div
                     key={day.toISOString()}
-                    whileHover={!isFuture ? { y: -3 } : {}}
-                    onClick={() => openModal(day)}
-                    className={`border rounded-xl p-3 min-h-[160px] transition select-none ${
-                      isFuture  ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
-                      : isToday ? "bg-slate-900 border-slate-800 cursor-pointer text-white"
+                    whileHover={clickable ? { y: -3 } : {}}
+                    onClick={() => clickable && openModal(day)}
+                    className={`border rounded-xl p-3 min-h-[160px] transition select-none relative ${
+                      isFuture    ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
+                      : fullyLocked ? "bg-green-50 border-green-200 cursor-pointer"
+                      : isToday   ? "bg-slate-900 border-slate-800 cursor-pointer text-white"
                       : dayEntries.length ? "bg-white border-slate-200 cursor-pointer shadow-sm"
                       : "bg-white border-slate-200 cursor-pointer hover:shadow-sm"
                     }`}
                   >
-                    <p className={`text-xs ${isToday ? "text-slate-300" : "text-slate-400"}`}>{format(day, "EEE")}</p>
-                    <p className={`text-xl font-bold mt-0.5 ${isToday ? "text-white" : "text-slate-900"}`}>{format(day, "d")}</p>
+                    {/* Fully-locked overlay badge */}
+                    {fullyLocked && (
+                      <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-green-100 text-green-700 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-green-200">
+                        <Lock size={8} /> Approved
+                      </div>
+                    )}
+
+                    <p className={`text-xs ${isToday && !fullyLocked ? "text-slate-300" : fullyLocked ? "text-green-500" : "text-slate-400"}`}>{format(day, "EEE")}</p>
+                    <p className={`text-xl font-bold mt-0.5 ${isToday && !fullyLocked ? "text-white" : fullyLocked ? "text-green-800" : "text-slate-900"}`}>{format(day, "d")}</p>
+
                     <div className="mt-3 space-y-1">
                       {dayEntries.map((e, i) => (
-                        <div key={i} className={`text-[10px] px-2 py-1 rounded-md border font-medium truncate ${isToday ? "bg-white/10 border-white/20 text-white" : getColor(i)}`}>
-                          {e.projectName}{e.taskName ? ` · ${e.taskName}` : ""} · {e.hours}h
+                        <div key={i} className={`text-[10px] px-2 py-1 rounded-md border font-medium truncate flex items-center gap-1 ${
+                          e.status === "APPROVED" ? "bg-green-50 border-green-200 text-green-700"
+                          : e.status === "REJECTED" ? "bg-red-50 border-red-200 text-red-600"
+                          : isToday ? "bg-white/10 border-white/20 text-white"
+                          : getColor(i)
+                        }`}>
+                          {e.status === "APPROVED" && <Lock size={8} className="flex-shrink-0" />}
+                          <span className="truncate">{e.projectName}{e.taskName ? ` · ${e.taskName}` : ""} · {e.hours}h</span>
                         </div>
                       ))}
                     </div>
-                    {total > 0 && <p className={`text-xs mt-2 font-semibold ${isToday ? "text-slate-300" : "text-slate-600"}`}>{total}h</p>}
+
+                    {total > 0 && (
+                      <p className={`text-xs mt-2 font-semibold ${
+                        fullyLocked ? "text-green-700" : isToday ? "text-slate-300" : "text-slate-600"
+                      }`}>{total}h</p>
+                    )}
                     {!isFuture && dayEntries.length === 0 && <p className="text-[10px] mt-3 text-red-400">Missing log</p>}
                     {isFuture && <p className={`text-[10px] mt-3 ${isToday ? "text-slate-400" : "text-slate-300"}`}>Locked</p>}
                   </motion.div>
@@ -410,10 +455,17 @@ export default function Timesheet() {
                   <p className="text-xs text-slate-400">{getTotalHours(dailyDate)}h logged</p>
                 </div>
                 {!isFutureDay(dailyDate) && (
-                  <button onClick={() => openModal(dailyDate)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-700 transition">
-                    <Plus size={14} /> Edit
-                  </button>
+                  /* Show Edit button; if day is fully locked show a read-only indicator instead */
+                  isDayFullyLocked(dailyDate) ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 font-medium">
+                      <Lock size={13} /> All Approved
+                    </div>
+                  ) : (
+                    <button onClick={() => openModal(dailyDate)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-700 transition">
+                      <Plus size={14} /> Edit
+                    </button>
+                  )
                 )}
               </div>
 
@@ -425,11 +477,25 @@ export default function Timesheet() {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {getEntriesForDay(dailyDate).map((e, i) => (
-                    <div key={i} className="px-5 py-4 flex items-center gap-4 group">
-                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getDotColor(i)}`} />
+                  {getEntriesForDay(dailyDate).map((e, i) => {
+                    const isApproved = e.status === "APPROVED";
+                    return (
+                    <div key={i} className={`px-5 py-4 flex items-center gap-4 group ${isApproved ? "bg-green-50/40" : ""}`}>
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isApproved ? "bg-green-400" : getDotColor(i)}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-slate-900 truncate">{e.projectName}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-slate-900 truncate">{e.projectName}</p>
+                          {isApproved && (
+                            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-700 bg-green-100 border border-green-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              <Lock size={8} /> Approved
+                            </span>
+                          )}
+                          {e.status === "REJECTED" && (
+                            <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              Rejected
+                            </span>
+                          )}
+                        </div>
                         {e.taskName && (
                           <p className="flex items-center gap-1 text-xs text-indigo-600 mt-0.5">
                             <ListTodo size={10} /> {e.taskName}
@@ -437,16 +503,22 @@ export default function Timesheet() {
                         )}
                         {e.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{e.description}</p>}
                       </div>
-                      <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${getColor(i)}`}>{e.hours}h</span>
-                      <button
-                        onClick={() => deleteEntry(e)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-400 transition rounded-lg hover:bg-red-50"
-                        title="Delete entry"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${isApproved ? "bg-green-50 border-green-200 text-green-700" : getColor(i)}`}>{e.hours}h</span>
+                      {/* Only show delete for non-approved entries */}
+                      {!isApproved ? (
+                        <button
+                          onClick={() => deleteEntry(e)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-400 transition rounded-lg hover:bg-red-50"
+                          title="Delete entry"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : (
+                        <div className="w-[30px]" /> /* spacer to keep layout aligned */
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -490,8 +562,35 @@ export default function Timesheet() {
 
                   <div className="px-6 py-4 space-y-4 max-h-[400px] overflow-auto">
                     {formRows.map((row, i) => {
-                      const tasks   = taskOptions[i] ?? [];
+                      const tasks      = taskOptions[i] ?? [];
                       const isExisting = !!row.id;
+
+                      /* ── LOCKED (approved) row — read-only display ── */
+                      if (row.locked) {
+                        const projName = isSpecialSentinel(row.projectId)
+                          ? (row.projectId === "__bench__" ? "🪑 Bench" : "📚 Learning")
+                          : (projects.find((p) => String(p.id) === row.projectId)?.name ?? row.projectId);
+                        const taskName = tasks.find((t) => String(t.id) === row.taskId)?.name;
+                        return (
+                          <div key={i} className="flex gap-3 items-start rounded-xl p-3 -mx-1 bg-green-50 border border-green-200">
+                            <Lock size={14} className="text-green-500 flex-shrink-0 mt-1" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wide">Approved — read only</span>
+                              </div>
+                              <p className="text-sm font-medium text-slate-900 truncate">{projName}</p>
+                              {taskName && <p className="text-xs text-indigo-600 mt-0.5">{taskName}</p>}
+                              {row.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{row.description}</p>}
+                            </div>
+                            <span className="text-sm font-bold text-green-700 bg-green-100 border border-green-200 px-3 py-1 rounded-full flex-shrink-0">
+                              {row.hours}h
+                            </span>
+                            {/* no delete button for locked rows */}
+                          </div>
+                        );
+                      }
+
+                      /* ── Editable row ── */
                       return (
                         <div key={i} className={`flex gap-2 items-start rounded-xl p-3 -mx-1 ${isExisting ? "bg-slate-50 border border-slate-200" : ""}`}>
                           <div className="flex-1 space-y-2">

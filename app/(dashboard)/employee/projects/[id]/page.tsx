@@ -19,7 +19,7 @@ type TimesheetEntry = { id: number; date: string; hours: number; description?: s
 type TaskItem = {
   id: number;
   name: string;
-  status: "ACTIVE" | "COMPLETED";
+  status: "CREATED" | "WORK_IN_PROGRESS" | "COMPLETED";
   module?: string | null;
   projectId: number;
   createdAt: string;
@@ -352,7 +352,7 @@ export default function ProjectDetailPage() {
                           onClick={async () => {
                             await apiFetch(`/tasks/${t.id}`, {
                               method: "PATCH",
-                              body: JSON.stringify({ status: done ? "ACTIVE" : "COMPLETED" }),
+                              body: JSON.stringify({ status: done ? "CREATED" : "COMPLETED" }),
                             });
                             await loadProject();
                           }}
