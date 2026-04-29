@@ -5,13 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Users, Clock, Calendar, User, Briefcase,
-  AlertCircle, Pencil, X, Check, UserPlus, MapPin, Building2,
+  AlertCircle, Pencil, X, Check, UserPlus, MapPin,
   Sun, Coffee, ListTodo, Plus, Trash2, CheckCircle2, Circle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
-import { parseUTC, fmtDate } from "@/lib/date";
+import { parseUTC, fmtDate as fmtDateUTC } from "@/lib/date";
 
 type UserOption = { id: number; name: string; email: string; role: string; designation?: string };
 type Member = UserOption;
@@ -85,6 +85,7 @@ export default function ProjectDetailPage() {
   const [callerRole, setCallerRole] = useState("");
 
   const [allUsers, setAllUsers] = useState<UserOption[]>([]);
+  const [responsibilities, setResponsibilities] = useState<Record<number, number | null>>({});
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [showPmModal, setShowPmModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -103,6 +104,15 @@ export default function ProjectDetailPage() {
     setProject(proj);
     setTimesheets(Array.isArray(ts) ? ts : ts.data ?? []);
     setTasks(Array.isArray(taskRes) ? taskRes : taskRes.data ?? []);
+
+    /* Load responsibility percentages for display in Team Members card */
+    try {
+      const respRows: { userId: number; responsibility: number | null }[] =
+        await apiFetch(`/projects/${id}/members/responsibilities`);
+      const map: Record<number, number | null> = {};
+      respRows.forEach((r) => { map[r.userId] = r.responsibility; });
+      setResponsibilities(map);
+    } catch { /* ignore — non-critical */ }
   }, [id]);
 
   useEffect(() => {
@@ -181,7 +191,7 @@ export default function ProjectDetailPage() {
         <InfoCard icon={<Clock size={16} />}     label="Total Hours" value={`${totalHours}h`} />
         <InfoCard icon={<Users size={16} />}     label="Members"     value={String(project.members?.length ?? 0)} />
         <InfoCard icon={<Briefcase size={16} />} label="Timesheets"  value={String(timesheets.length)} />
-        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDate(parseUTC(project.createdAt)) : "—"} />
+        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDateUTC(parseUTC(project.createdAt)) : "—"} />
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -272,18 +282,26 @@ export default function ProjectDetailPage() {
               <p className="text-sm text-slate-400 px-5 py-4">{isAdmin ? "Click Manage to add members." : "No members assigned."}</p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {project.members.map((m) => (
-                  <div key={m.id} className="px-5 py-3 flex items-center gap-3">
-                    <Avatar name={m.name} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{m.name}</p>
-                      {m.designation && <p className="text-xs text-slate-400 truncate">{m.designation}</p>}
+                {project.members.map((m) => {
+                  const pct = responsibilities[m.id];
+                  return (
+                    <div key={m.id} className="px-5 py-3 flex items-center gap-3">
+                      <Avatar name={m.name} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{m.name}</p>
+                        {m.designation && <p className="text-xs text-slate-400 truncate">{m.designation}</p>}
+                      </div>
+                      {pct != null && (
+                        <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex-shrink-0">
+                          {pct}%
+                        </span>
+                      )}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600"}`}>
+                        {m.role}
+                      </span>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600"}`}>
-                      {m.role}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -752,60 +770,175 @@ function PmModal({ project, users, onClose, onSaved }: {
 }
 
 /* ─────────────────────────────────────────
-   Members Modal
+   Members Modal  (with responsibility %)
 ───────────────────────────────────────── */
 function MembersModal({ project, users, onClose, onSaved }: {
   project: Project; users: UserOption[]; onClose: () => void; onSaved: () => void;
 }) {
   const currentIds = new Set((project.members ?? []).map((m) => m.id));
+
+  /* selected member ids */
   const [selected, setSelected] = useState<Set<number>>(new Set(currentIds));
+  /* responsibility map: userId → % string (editable) */
+  const [resp, setResp] = useState<Record<number, string>>({});
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+
+  /* Load existing responsibilities from server on open */
+  useEffect(() => {
+    apiFetch(`/projects/${project.id}/members/responsibilities`)
+      .then((rows: any[]) => {
+        const map: Record<number, string> = {};
+        rows.forEach((r) => {
+          map[r.userId] = r.responsibility != null ? String(r.responsibility) : "";
+        });
+        /* seed equal split for members with no existing value */
+        const ids = [...new Set([...currentIds, ...rows.map((r) => r.userId)])];
+        const noValue = ids.filter((id) => map[id] === undefined || map[id] === "");
+        if (noValue.length > 0) {
+          const totalAssigned = rows.reduce((s, r) => s + (r.responsibility ?? 0), 0);
+          const share = Math.round(((100 - totalAssigned) / noValue.length) * 10) / 10;
+          noValue.forEach((id) => { map[id] = String(share); });
+        }
+        setResp(map);
+      })
+      .catch(() => redistributeEqual(new Set(currentIds)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Spread 100% equally across the given set of ids */
+  const redistributeEqual = (ids: Set<number>) => {
+    const arr = [...ids];
+    if (!arr.length) { setResp({}); return; }
+    const each = Math.floor((100 / arr.length) * 10) / 10;
+    const last  = Math.round((100 - each * (arr.length - 1)) * 10) / 10;
+    const map: Record<number, string> = {};
+    arr.forEach((id, i) => { map[id] = String(i === arr.length - 1 ? last : each); });
+    setResp(map);
+  };
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      redistributeEqual(next);
+      return next;
+    });
+  };
+
+  const updateResp = (id: number, val: string) =>
+    setResp((prev) => ({ ...prev, [id]: val }));
+
+  const totalResp = [...selected].reduce((s, id) => s + (parseFloat(resp[id] ?? "0") || 0), 0);
+  const totalOk   = Math.abs(totalResp - 100) < 0.5;
 
   const filtered = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggle = (id: number) =>
-    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const selectedList = users.filter((u) => selected.has(u.id));
 
   const save = async () => {
     setSaving(true); setErr("");
     try {
       const toAdd    = [...selected].filter((id) => !currentIds.has(id));
       const toRemove = [...currentIds].filter((id) => !selected.has(id));
+
+      /* Add / remove members */
       await Promise.all([
         ...toAdd.map((userId)    => apiFetch(`/projects/${project.id}/members`, { method: "POST", body: JSON.stringify({ userId }) })),
         ...toRemove.map((userId) => apiFetch(`/projects/${project.id}/members/${userId}`, { method: "DELETE" })),
       ]);
+
+      /* Save responsibility percentages for all remaining members */
+      const items = [...selected].map((userId) => ({
+        userId,
+        responsibility: parseFloat(resp[userId] ?? "0") || 0,
+      }));
+      if (items.length) {
+        await apiFetch(`/projects/${project.id}/members/responsibilities`, {
+          method: "PATCH",
+          body: JSON.stringify({ items }),
+        });
+      }
+
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Failed to update members."); setSaving(false); }
   };
-
-  const selectedList = users.filter((u) => selected.has(u.id));
 
   return (
     <Backdrop onClose={onClose}>
       <ModalBox wide>
         <ModalHeader title="Manage Team Members" onClose={onClose} />
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+
+          {/* ── Responsibility table ── */}
           {selectedList.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selectedList.map((u) => (
-                <span key={u.id} className="flex items-center gap-1.5 pl-2 pr-1 py-1 bg-slate-100 rounded-full text-xs font-medium text-slate-700">
-                  {u.name}
-                  <button onClick={() => toggle(u.id)} className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-slate-300 transition">
-                    <X size={10} />
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Responsibility
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => redistributeEqual(selected)}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    ⟳ Equal split
                   </button>
-                </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    totalOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                  }`}>
+                    {Math.round(totalResp * 10) / 10}%
+                  </span>
+                </div>
+              </div>
+
+              {selectedList.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-0">
+                  <Avatar name={u.name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
+                    <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <input
+                      type="number" min="0" max="100" step="0.1"
+                      value={resp[u.id] ?? ""}
+                      onChange={(e) => updateResp(u.id, e.target.value)}
+                      className="w-16 text-right border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs text-slate-400">%</span>
+                  </div>
+                  <button
+                    onClick={() => toggle(u.id)}
+                    className="text-slate-300 hover:text-red-400 transition flex-shrink-0"
+                    title="Remove member"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               ))}
+
+              {!totalOk && (
+                <p className="px-4 py-2 text-xs text-red-500 bg-red-50">
+                  Total is {Math.round(totalResp * 10) / 10}% — adjust values to reach 100%.
+                </p>
+              )}
             </div>
           )}
-          <input autoFocus placeholder="Search users…" value={search}
-            onChange={(e) => setSearch(e.target.value)} className={INPUT} />
-          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
+
+          {/* ── User search & picker ── */}
+          <input
+            autoFocus={selectedList.length === 0}
+            placeholder="Search users to add…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={INPUT}
+          />
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
             {filtered.map((u) => {
               const checked = selected.has(u.id);
               return (
@@ -820,6 +953,11 @@ function MembersModal({ project, users, onClose, onSaved }: {
                     <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>{u.role}</span>
+                  {checked && resp[u.id] && (
+                    <span className="text-xs font-semibold text-indigo-600 flex-shrink-0 w-10 text-right">
+                      {resp[u.id]}%
+                    </span>
+                  )}
                 </button>
               );
             })}
