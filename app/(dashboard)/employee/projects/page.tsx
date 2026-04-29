@@ -80,6 +80,67 @@ function fmtDate(s: string) {
   });
 }
 
+function PMTooltip({
+  projectManager,
+}: {
+  projectManager: { id: number; name: string; designation?: string };
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="relative flex items-center gap-1.5 flex-shrink-0"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {/* Avatar */}
+        <span className="text-[10px] font-semibold text-slate-500">
+    Project Manager
+  </span>
+
+      <div
+        className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${
+          AVATAR_COLORS[(projectManager.id ?? 0) % AVATAR_COLORS.length]
+        }`}
+      >
+        {projectManager.name[0]?.toUpperCase()}
+      </div>
+
+      {/* Name */}
+      <span className="text-[11px] text-slate-400 truncate max-w-[90px]">
+        {projectManager.name}
+      </span>
+
+      {/* Tooltip */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            transition={{ duration: 0.12 }}
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none"
+          >
+            <div className="bg-slate-900 text-white rounded-lg px-3 py-2 shadow-xl min-w-max">
+              <p className="text-xs font-semibold leading-tight">
+                {projectManager.name}
+              </p>
+              <p className="text-[10px] text-slate-300 mt-0.5">
+                {projectManager.designation || "Project Manager"}
+              </p>
+            </div>
+
+            {/* Arrow */}
+            <div className="flex justify-center -mt-1">
+              <div className="w-2 h-2 bg-slate-900 rotate-45" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════ */
 export default function ProjectsPage() {
   const router = useRouter();
@@ -91,7 +152,7 @@ export default function ProjectsPage() {
   const [createError, setCreateError] = useState("");
   const [form,        setForm]        = useState(EMPTY_FORM);
   const [search,      setSearch]      = useState("");
-  const [statusFilter,setStatusFilter]= useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [statusFilter,setStatusFilter]= useState<"ALL" | "ACTIVE" | "INACTIVE">("ACTIVE");
 
   const loadProjects = async () => {
     try {
@@ -201,7 +262,7 @@ export default function ProjectsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search projects, clients…"
             className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
-          />
+          /> 
         </div>
 
         {/* Status pills */}
@@ -519,22 +580,14 @@ function ProjectCard({
           </div>
 
           {/* PM chip */}
-          {p.projectManager ? (
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <div
-                className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${
-                  AVATAR_COLORS[(p.projectManager.id ?? 0) % AVATAR_COLORS.length]
-                }`}
-              >
-                {p.projectManager.name[0]?.toUpperCase()}
-              </div>
-              <span className="text-[11px] text-slate-400 truncate max-w-[90px]" title={p.projectManager.name}>
-                {p.projectManager.name}
-              </span>
-            </div>
-          ) : (
-            <span className="text-[11px] text-slate-300 italic flex-shrink-0">No PM</span>
-          )}
+      {/* PM chip */}
+{p.projectManager ? (
+  <PMTooltip projectManager={p.projectManager} />
+) : (
+  <span className="text-[11px] text-slate-300 italic flex-shrink-0">
+    No PM
+  </span>
+)}
         </div>
 
       </div>
