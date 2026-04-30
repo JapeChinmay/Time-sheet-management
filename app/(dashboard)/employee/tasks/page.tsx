@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, CheckCircle2, Circle, Folder, Users,
   Calendar, Search, X, ChevronRight, Plus, Loader2,
-  Clock, PauseCircle, AlertTriangle, ChevronDown,
+  Clock, PauseCircle, AlertTriangle, ChevronDown, Forward,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
@@ -51,6 +51,10 @@ const ALL_STATUSES: TaskStatus[] = [
   "CREATED", "ASSIGNED", "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY", "COMPLETED",
 ];
 
+function dropdownStatuses(current: TaskStatus): TaskStatus[] {
+  return ALL_STATUSES.filter((s) => s !== current && s !== "CREATED");
+}
+
 /* ─── SAP modules ─── */
 const SAP_MODULES = [
   { value: "SAP_BTP",  label: "SAP BTP"  },
@@ -90,10 +94,14 @@ function StatusPicker({
   taskId,
   current,
   onChanged,
+  onForward,
+  onAssign,
 }: {
   taskId: number;
   current: TaskStatus;
   onChanged: (id: number, next: TaskStatus) => void;
+  onForward: () => void;
+  onAssign: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -108,7 +116,6 @@ function StatusPicker({
   }, []);
 
   const choose = async (next: TaskStatus) => {
-    if (next === current) { setOpen(false); return; }
     setSaving(true);
     setOpen(false);
     try {
@@ -122,12 +129,14 @@ function StatusPicker({
   };
 
   const meta = STATUS_META[current];
+  const nextOptions = dropdownStatuses(current);
 
   return (
     <div ref={ref} className="relative flex-shrink-0">
       <button
         onClick={() => setOpen((p) => !p)}
         disabled={saving}
+        title="Change status"
         className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border cursor-pointer hover:opacity-80 transition ${meta.badge}`}
       >
         {saving
@@ -139,7 +148,7 @@ function StatusPicker({
       </button>
 
       <AnimatePresence>
-        {open && (
+        {open && nextOptions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.97 }}
             animate={{ opacity: 1, y: 0,  scale: 1     }}
@@ -147,20 +156,33 @@ function StatusPicker({
             transition={{ duration: 0.12 }}
             className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden w-52"
           >
-            {ALL_STATUSES.map((s) => {
+            <p className="text-[10px] text-slate-400 px-4 pt-2.5 pb-1 uppercase tracking-wide font-semibold">Change status to</p>
+            {nextOptions.map((s) => {
               const m = STATUS_META[s];
+              const isAssign = s === "ASSIGNED";
               return (
                 <button
                   key={s}
-                  onClick={() => choose(s)}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-slate-50 transition text-left ${s === current ? "bg-slate-50 font-semibold" : ""}`}
+                  onClick={() => {
+                    setOpen(false);
+                    isAssign ? onAssign() : choose(s);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-slate-50 transition text-left"
                 >
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${m.dot}`} />
                   {m.label}
-                  {s === current && <span className="ml-auto text-[10px] text-slate-400">current</span>}
+                  {isAssign && <Users size={12} className="ml-auto text-slate-400" />}
                 </button>
               );
             })}
+            <div className="border-t border-slate-100 mt-1" />
+            <button
+              onClick={() => { setOpen(false); onForward(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-indigo-600 hover:bg-indigo-50 transition text-left font-medium"
+            >
+              <Forward size={14} className="flex-shrink-0" />
+              Forward to…
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -182,10 +204,20 @@ export default function TasksPage() {
   const [projects, setProjects]       = useState<Project[]>([]);
   const [users, setUsers]             = useState<User[]>([]);
   const [createForm, setCreateForm]   = useState({ projectId: "", name: "", module: "" });
-  const [selectedAssignees, setSelectedAssignees] = useState<Set<number>>(new Set());
+  const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
   const [userSearch, setUserSearch]   = useState("");
   const [creating, setCreating]       = useState(false);
   const [createError, setCreateError] = useState("");
+
+  /* forward / assign task modal */
+  const [fwdTask, setFwdTask]           = useState<Task | null>(null);
+  const [fwdMode, setFwdMode]           = useState<"forward" | "assign">("forward");
+  const [fwdAllUsers, setFwdAllUsers]   = useState<User[]>([]);
+  const [fwdModule, setFwdModule]       = useState("");
+  const [fwdUserId, setFwdUserId]       = useState<number | null>(null);
+  const [fwdSearch, setFwdSearch]       = useState("");
+  const [forwarding, setForwarding]     = useState(false);
+  const [fwdErr, setFwdErr]             = useState("");
 
   const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
@@ -210,7 +242,7 @@ export default function TasksPage() {
   /* ── Create task helpers ── */
   const openCreateModal = async () => {
     setCreateForm({ projectId: "", name: "", module: "" });
-    setSelectedAssignees(new Set());
+    setSelectedAssignee(null);
     setUserSearch("");
     setCreateError("");
     try {
@@ -222,14 +254,6 @@ export default function TasksPage() {
       setUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
     } catch (e) { console.error(e); }
     setShowCreate(true);
-  };
-
-  const toggleAssignee = (userId: number) => {
-    setSelectedAssignees((prev) => {
-      const next = new Set(prev);
-      next.has(userId) ? next.delete(userId) : next.add(userId);
-      return next;
-    });
   };
 
   const submitCreate = async () => {
@@ -244,17 +268,84 @@ export default function TasksPage() {
       };
       if (createForm.module) body.module = createForm.module;
       const task: Task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
-      await Promise.all(
-        [...selectedAssignees].map((userId) =>
-          apiFetch(`/tasks/${task.id}/assignees`, { method: "POST", body: JSON.stringify({ userId }) })
-        )
-      );
+
+      if (selectedAssignee !== null) {
+        await apiFetch(`/tasks/${task.id}/assignees`, {
+          method: "POST",
+          body: JSON.stringify({ userId: selectedAssignee }),
+        });
+        /* auto-advance to ASSIGNED */
+        await apiFetch(`/tasks/${task.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "ASSIGNED" }),
+        });
+      }
+
       setShowCreate(false);
       await loadTasks();
     } catch (err: unknown) {
       setCreateError((err as { message?: string }).message ?? "Failed to create task.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  /* ── Forward / Assign task helpers ── */
+  const openForward = async (task: Task) => {
+    setFwdMode("forward");
+    setFwdTask(task);
+    setFwdModule("");
+    setFwdUserId(null);
+    setFwdSearch("");
+    setFwdErr("");
+    try {
+      const uRes = await apiFetch("/users?limit=200&sort=name,ASC");
+      setFwdAllUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
+    } catch (e) { console.error(e); }
+  };
+
+  const openAssign = async (task: Task) => {
+    setFwdMode("assign");
+    setFwdTask(task);
+    setFwdModule(task.module ?? "");
+    setFwdUserId(null);
+    setFwdSearch("");
+    setFwdErr("");
+    try {
+      const uRes = await apiFetch("/users?limit=200&sort=name,ASC");
+      setFwdAllUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
+    } catch (e) { console.error(e); }
+  };
+
+  const submitForward = async () => {
+    if (fwdMode === "forward" && !fwdModule) { setFwdErr("Please select a module."); return; }
+    if (!fwdUserId)  { setFwdErr("Please select a user."); return; }
+    setForwarding(true);
+    setFwdErr("");
+    try {
+      /* remove all existing assignees */
+      const oldAssignees = fwdTask!.assignees ?? [];
+      await Promise.all(
+        oldAssignees.map((a) =>
+          apiFetch(`/tasks/${fwdTask!.id}/assignees/${a.id}`, { method: "DELETE" })
+        )
+      );
+      /* add the new assignee */
+      await apiFetch(`/tasks/${fwdTask!.id}/assignees`, {
+        method: "POST",
+        body: JSON.stringify({ userId: fwdUserId }),
+      });
+      /* reset status to ASSIGNED */
+      await apiFetch(`/tasks/${fwdTask!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "ASSIGNED" }),
+      });
+      setFwdTask(null);
+      await loadTasks();
+    } catch (err: unknown) {
+      setFwdErr((err as { message?: string }).message ?? "Failed to forward task.");
+    } finally {
+      setForwarding(false);
     }
   };
 
@@ -287,6 +378,26 @@ export default function TasksPage() {
     (u) => !userSearch.trim() ||
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase())
+  );
+  const selectedAssigneeName = selectedAssignee !== null
+    ? users.find((u) => u.id === selectedAssignee)?.name
+    : null;
+
+  /* forward modal derived lists */
+  const fwdModuleUsers = fwdModule
+    ? fwdAllUsers.filter((u) => u.module === fwdModule)
+    : fwdMode === "assign" ? fwdAllUsers : [];
+  const fwdFilteredUsers = fwdModuleUsers.filter(
+    (u) => !fwdSearch.trim() ||
+      u.name.toLowerCase().includes(fwdSearch.toLowerCase()) ||
+      u.designation?.toLowerCase().includes(fwdSearch.toLowerCase())
+  );
+  const fwdSelectedName = fwdUserId !== null
+    ? fwdAllUsers.find((u) => u.id === fwdUserId)?.name
+    : null;
+  /* which modules have at least one user */
+  const occupiedModules = SAP_MODULES.filter((m) =>
+    fwdAllUsers.some((u) => u.module === m.value)
   );
 
   const ROLE_COLORS: Record<string, string> = {
@@ -452,6 +563,8 @@ export default function TasksPage() {
                       taskId={task.id}
                       current={task.status}
                       onChanged={handleStatusChanged}
+                      onForward={() => openForward(task)}
+                      onAssign={() => openAssign(task)}
                     />
                   ) : (
                     <span className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${STATUS_META[task.status].badge}`}>
@@ -534,7 +647,7 @@ export default function TasksPage() {
                     value={createForm.module}
                     onChange={(val) => {
                       setCreateForm((f) => ({ ...f, module: val }));
-                      setSelectedAssignees(new Set());
+                      setSelectedAssignee(null);
                     }}
                     placeholder="— Select module (optional) —"
                     searchable
@@ -545,20 +658,35 @@ export default function TasksPage() {
                   />
                 </div>
 
-                {/* Assignees */}
+                {/* Assignee (single) */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Assign To
-                    {selectedAssignees.size > 0 && (
-                      <span className="ml-2 normal-case font-medium text-indigo-600">{selectedAssignees.size} selected</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Assign To
+                      {createForm.module && (
+                        <span className="ml-2 normal-case font-normal text-slate-400">
+                          — filtered by {MODULE_LABEL[createForm.module]}
+                          {moduleFilteredUsers.length === 0 && " (no members)"}
+                        </span>
+                      )}
+                    </label>
+                    {selectedAssignee !== null && (
+                      <button
+                        onClick={() => setSelectedAssignee(null)}
+                        className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1 transition"
+                      >
+                        <X size={11} /> Clear
+                      </button>
                     )}
-                    {createForm.module && (
-                      <span className="ml-2 normal-case font-normal text-slate-400">
-                        — filtered by {MODULE_LABEL[createForm.module]}
-                        {moduleFilteredUsers.length === 0 && " (no members)"}
-                      </span>
-                    )}
-                  </label>
+                  </div>
+
+                  {selectedAssigneeName && (
+                    <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                      <span className="text-sm font-medium text-blue-800">{selectedAssigneeName}</span>
+                      <span className="ml-auto text-[10px] text-blue-500 font-semibold bg-blue-100 px-2 py-0.5 rounded-full">ASSIGNED</span>
+                    </div>
+                  )}
 
                   <div className="relative mb-2">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -584,21 +712,22 @@ export default function TasksPage() {
                       </p>
                     ) : (
                       filteredUsers.map((u) => {
-                        const checked = selectedAssignees.has(u.id);
+                        const selected = selectedAssignee === u.id;
                         return (
                           <label
                             key={u.id}
-                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${checked ? "bg-indigo-50/60" : ""}`}
+                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${selected ? "bg-blue-50/60" : ""}`}
                           >
                             <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleAssignee(u.id)}
-                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              type="radio"
+                              name="assignee"
+                              checked={selected}
+                              onChange={() => setSelectedAssignee(u.id)}
+                              className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
-                              <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                              <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
                             </div>
                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
                               {u.role}
@@ -626,6 +755,174 @@ export default function TasksPage() {
                 </button>
                 <button
                   onClick={() => setShowCreate(false)}
+                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ══════ FORWARD TASK MODAL ══════ */}
+      <AnimatePresence>
+        {fwdTask && (
+          <motion.div
+            className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setFwdTask(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+                    <Forward size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900">
+                      {fwdMode === "assign" ? "Assign User" : "Forward Task"}
+                    </h3>
+                    <p className="text-xs text-slate-400 truncate max-w-[240px]">{fwdTask.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setFwdTask(null)} className="text-slate-400 hover:text-slate-600">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+
+                {/* Module step — only in forward mode */}
+                {fwdMode === "forward" && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                      1 · Select Module
+                    </p>
+                    {occupiedModules.length === 0 ? (
+                      <p className="text-sm text-slate-400 italic">No modules with assigned users found.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {occupiedModules.map((m) => (
+                          <button
+                            key={m.value}
+                            onClick={() => { setFwdModule(m.value); setFwdUserId(null); setFwdSearch(""); }}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                              fwdModule === m.value
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* User step — always shown in assign mode; shown after module in forward mode */}
+                {(fwdMode === "assign" || fwdModule) && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                      {fwdMode === "assign" ? "Select User" : "2 · Select User"}
+                      {fwdModule && (
+                        <span className="ml-2 normal-case font-normal text-slate-400">
+                          — {MODULE_LABEL[fwdModule] ?? "All modules"}
+                        </span>
+                      )}
+                    </p>
+
+                    {fwdSelectedName && (
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-indigo-800">{fwdSelectedName}</span>
+                        <span className="ml-auto text-[10px] text-indigo-500 font-semibold bg-indigo-100 px-2 py-0.5 rounded-full">Selected</span>
+                      </div>
+                    )}
+
+                    <div className="relative mb-2">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        placeholder="Search users…"
+                        value={fwdSearch}
+                        onChange={(e) => setFwdSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      {fwdSearch && (
+                        <button onClick={() => setFwdSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                      {fwdFilteredUsers.length === 0 ? (
+                        <p className="text-sm text-slate-400 text-center py-6">
+                          {fwdModuleUsers.length === 0
+                            ? fwdModule ? `No users in ${MODULE_LABEL[fwdModule]}` : "No users found"
+                            : "No users match your search"}
+                        </p>
+                      ) : (
+                        fwdFilteredUsers.map((u) => {
+                          const sel = fwdUserId === u.id;
+                          const isCurrent = fwdTask.assignees?.some((a) => a.id === u.id);
+                          return (
+                            <label
+                              key={u.id}
+                              className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${sel ? "bg-indigo-50/60" : ""} ${isCurrent ? "opacity-50 pointer-events-none" : ""}`}
+                            >
+                              <input
+                                type="radio"
+                                name="fwd-assignee"
+                                checked={sel}
+                                onChange={() => setFwdUserId(u.id)}
+                                disabled={isCurrent}
+                                className="w-4 h-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-900 truncate">
+                                  {u.name}
+                                  {isCurrent && <span className="ml-2 text-[10px] text-slate-400">(current assignee)</span>}
+                                </p>
+                                <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                              </div>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
+                                {u.role}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {fwdErr && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{fwdErr}</p>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100 flex-shrink-0">
+                <button
+                  onClick={submitForward}
+                  disabled={forwarding || (fwdMode === "forward" && !fwdModule) || !fwdUserId}
+                  className="flex-1 bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {forwarding
+                    ? <><Loader2 size={15} className="animate-spin" /> {fwdMode === "assign" ? "Assigning…" : "Forwarding…"}</>
+                    : fwdMode === "assign"
+                      ? <><Users size={15} /> Assign User</>
+                      : <><Forward size={15} /> Forward Task</>
+                  }
+                </button>
+                <button
+                  onClick={() => setFwdTask(null)}
                   className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
                 >
                   Cancel
