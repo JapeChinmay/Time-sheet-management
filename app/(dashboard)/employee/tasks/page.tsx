@@ -23,6 +23,14 @@ type TaskStatus =
   | "COMPLETED";
 
 type Assignee = { id: number; name: string; email: string; role: string; designation?: string };
+type ForwardLog = {
+  id: number;
+  forwardedAt: string;
+  fromModule: string | null;
+  toModule: string | null;
+  fromUser?: { id: number; name: string } | null;
+  toUser?: { id: number; name: string } | null;
+};
 type Task = {
   id: number;
   name: string;
@@ -32,6 +40,11 @@ type Task = {
   createdAt: string;
   project?: { id: number; name: string };
   assignees?: Assignee[];
+  forwardedFromId?: number | null;
+  forwardedToId?: number | null;
+  forwardedFrom?: { id: number; name: string } | null;
+  forwardedTo?: { id: number; name: string } | null;
+  forwardLogs?: ForwardLog[];
 };
 type Project = { id: number; name: string };
 type User    = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
@@ -96,12 +109,14 @@ function StatusPicker({
   onChanged,
   onForward,
   onAssign,
+  forwardedTo,
 }: {
   taskId: number;
   current: TaskStatus;
   onChanged: (id: number, next: TaskStatus) => void;
   onForward: () => void;
   onAssign: () => void;
+  forwardedTo?: { id: number; name: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -130,6 +145,7 @@ function StatusPicker({
 
   const meta = STATUS_META[current];
   const nextOptions = dropdownStatuses(current);
+  const isFwdBadge = current === "ASSIGNED" && !!forwardedTo;
 
   return (
     <div ref={ref} className="relative flex-shrink-0">
@@ -137,13 +153,17 @@ function StatusPicker({
         onClick={() => setOpen((p) => !p)}
         disabled={saving}
         title="Change status"
-        className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border cursor-pointer hover:opacity-80 transition ${meta.badge}`}
+        className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border cursor-pointer hover:opacity-80 transition ${
+          isFwdBadge ? "bg-indigo-50 text-indigo-700 border-indigo-200" : meta.badge
+        }`}
       >
         {saving
           ? <Loader2 size={10} className="animate-spin" />
-          : <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+          : isFwdBadge
+            ? <Forward size={10} />
+            : <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
         }
-        {meta.label}
+        {isFwdBadge ? `Forwarded to ${forwardedTo!.name}` : meta.label}
         <ChevronDown size={10} />
       </button>
 
@@ -223,7 +243,7 @@ export default function TasksPage() {
 
   const loadTasks = async () => {
     try {
-      const res = await apiFetch("/tasks?join=project&join=assignees&limit=500&sort=createdAt,DESC");
+      const res = await apiFetch("/tasks?join=project&join=assignees&join=forwardedFrom&join=forwardedTo&join=forwardLogs&join=forwardLogs.fromUser&join=forwardLogs.toUser&limit=500&sort=createdAt,DESC");
       setTasks(Array.isArray(res) ? res : res.data ?? []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -323,23 +343,29 @@ export default function TasksPage() {
     setForwarding(true);
     setFwdErr("");
     try {
-      /* remove all existing assignees */
-      const oldAssignees = fwdTask!.assignees ?? [];
-      await Promise.all(
-        oldAssignees.map((a) =>
-          apiFetch(`/tasks/${fwdTask!.id}/assignees/${a.id}`, { method: "DELETE" })
-        )
-      );
-      /* add the new assignee */
-      await apiFetch(`/tasks/${fwdTask!.id}/assignees`, {
-        method: "POST",
-        body: JSON.stringify({ userId: fwdUserId }),
-      });
-      /* reset status to ASSIGNED */
-      await apiFetch(`/tasks/${fwdTask!.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "ASSIGNED" }),
-      });
+      if (fwdMode === "forward") {
+        /* single atomic forward endpoint */
+        await apiFetch(`/tasks/${fwdTask!.id}/forward`, {
+          method: "POST",
+          body: JSON.stringify({ toUserId: fwdUserId }),
+        });
+      } else {
+        /* assign mode — replace assignees + set ASSIGNED, clear forward fields */
+        const oldAssignees = fwdTask!.assignees ?? [];
+        await Promise.all(
+          oldAssignees.map((a) =>
+            apiFetch(`/tasks/${fwdTask!.id}/assignees/${a.id}`, { method: "DELETE" })
+          )
+        );
+        await apiFetch(`/tasks/${fwdTask!.id}/assignees`, {
+          method: "POST",
+          body: JSON.stringify({ userId: fwdUserId }),
+        });
+        await apiFetch(`/tasks/${fwdTask!.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "ASSIGNED", forwardedFromId: null, forwardedToId: null }),
+        });
+      }
       setFwdTask(null);
       await loadTasks();
     } catch (err: unknown) {
@@ -507,6 +533,7 @@ export default function TasksPage() {
           <AnimatePresence initial={false}>
             {filtered.map((task, i) => {
               const done = task.status === "COMPLETED";
+              const isForwarded = task.status === "ASSIGNED" && !!task.forwardedToId;
               return (
                 <motion.div
                   key={task.id}
@@ -550,11 +577,40 @@ export default function TasksPage() {
                         </span>
                       )}
 
+                      {isForwarded && task.forwardedFrom && (
+                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                          <Forward size={11} />
+                          from {task.forwardedFrom.name}
+                        </span>
+                      )}
+
                       <span className="flex items-center gap-1 text-xs text-slate-400">
                         <Calendar size={11} />
                         {fmtDate(parseUTC(task.createdAt))}
                       </span>
                     </div>
+
+                    {/* Forward history */}
+                    {(task.forwardLogs?.length ?? 0) > 0 && (
+                      <div className="mt-2 pl-1 border-l-2 border-indigo-100 space-y-1">
+                        {task.forwardLogs!.map((log) => (
+                          <div key={log.id} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                            <Forward size={10} className="text-indigo-400 flex-shrink-0" />
+                            <span className="font-medium text-slate-500">{log.fromUser?.name ?? "—"}</span>
+                            <span>→</span>
+                            <span className="font-medium text-slate-500">{log.toUser?.name ?? "—"}</span>
+                            {log.toModule && (
+                              <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-semibold text-[10px]">
+                                {MODULE_LABEL[log.toModule] ?? log.toModule}
+                              </span>
+                            )}
+                            <span className="ml-auto text-[10px]">
+                              {new Date(log.forwardedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Status picker (admin) or static badge (others) */}
@@ -565,12 +621,20 @@ export default function TasksPage() {
                       onChanged={handleStatusChanged}
                       onForward={() => openForward(task)}
                       onAssign={() => openAssign(task)}
+                      forwardedTo={isForwarded ? task.forwardedTo ?? null : null}
                     />
                   ) : (
-                    <span className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${STATUS_META[task.status].badge}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[task.status].dot}`} />
-                      {STATUS_META[task.status].label}
-                    </span>
+                    isForwarded ? (
+                      <span className="flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Forward size={10} />
+                        Forwarded to {task.forwardedTo?.name ?? "…"}
+                      </span>
+                    ) : (
+                      <span className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${STATUS_META[task.status].badge}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[task.status].dot}`} />
+                        {STATUS_META[task.status].label}
+                      </span>
+                    )
                   )}
 
                   <button
