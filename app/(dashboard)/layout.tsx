@@ -35,6 +35,7 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Palmtree,
 } from "lucide-react";
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
@@ -102,7 +103,10 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/audit-logs": "Activity Logs",
   "/admin/timesheets": "Timesheet Approval",
   "/manager/timesheets": "Timesheet Approval",
-  "/support/report-bug": "Report Bug",
+  "/manager/leaves":        "Leave Approval",
+  "/employee/leaves":       "My Leaves",
+  "/admin/leave-policies":  "Leave Policies",
+  "/support/report-bug":    "Report Bug",
 };
 
 function getPageTitle(pathname: string): string {
@@ -1061,12 +1065,14 @@ export default function DashboardLayout({
           <SidebarItem icon={<Clock size={16} />}           label="Timesheet"  href="/employee/timesheet"  active={isActive("/employee/timesheet")}              onClose={() => setOpen(false)} />
           <SidebarItem icon={<Folder size={16} />}          label="Projects"   href="/employee/projects"   active={isActive("/employee/projects")}               onClose={() => setOpen(false)} />
           <SidebarItem icon={<ListTodo size={16} />}        label="Tasks"      href="/employee/tasks"      active={pathname.startsWith("/employee/tasks")}       onClose={() => setOpen(false)} />
+          <SidebarItem icon={<Palmtree size={16} />}        label="Leaves"     href="/employee/leaves"     active={pathname.startsWith("/employee/leaves")}      onClose={() => setOpen(false)} />
 
           {isPM && (
             <>
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Manager</p>
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")} onClose={() => setOpen(false)} />
+              <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}     onClose={() => setOpen(false)} />
             </>
           )}
 
@@ -1077,6 +1083,8 @@ export default function DashboardLayout({
               <SidebarItem icon={<Shield size={16} />}         label="Admin Overview"     href="/admin"              active={isActive("/admin")}                          onClose={() => setOpen(false)} />
               <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"     active={isActive("/employee/users")}                 onClose={() => setOpen(false)} />
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")}  onClose={() => setOpen(false)} />
+              <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}      onClose={() => setOpen(false)} />
+              <SidebarItem icon={<ScrollText size={16} />}     label="Leave Policies"     href="/admin/leave-policies" active={pathname.startsWith("/admin/leave-policies")} onClose={() => setOpen(false)} />
               <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")}    onClose={() => setOpen(false)} />
             </>
           )}

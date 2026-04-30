@@ -59,7 +59,7 @@ const ROLE_PILL: Record<string, string> = {
 };
 
 const EMPTY_CREATE = {
-  name: "", email: "", password: "", role: "INTERNAL", designation: "", module: "",
+  name: "", email: "", password: "", role: "INTERNAL", designation: "", module: "", leavePolicyId: "",
 };
 
 function decodeToken() {
@@ -100,6 +100,9 @@ export default function UsersPage() {
   const [activityFilter, setActivityFilter] = useState("ALL");
   const [moduleFilter, setModuleFilter]   = useState("");
 
+  /* leave policies (for create-user selector) */
+  const [policies, setPolicies] = useState<{ id: number; name: string }[]>([]);
+
   /* create-user modal */
   const [showCreate, setShowCreate]   = useState(false);
   const [createForm, setCreateForm]   = useState(EMPTY_CREATE);
@@ -114,6 +117,12 @@ export default function UsersPage() {
   const availableRoles = isSuperAdmin ? ROLES_ALL : ROLES_FOR_ADMIN;
 
   const router = useRouter();
+
+  useEffect(() => {
+    apiFetch("/leave-policies")
+      .then((d) => setPolicies(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -141,7 +150,12 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
 
     
         const projectIds: number[] = [
-          ...new Set(tsList.map((t: any) => Number(t.projectId))),
+          ...new Set(
+            tsList
+              .map((t: any) => t.projectId)
+              .filter((pid: any) => pid != null && pid !== 0)
+              .map((pid: any) => Number(pid))
+          ),
         ];
 
       
@@ -230,6 +244,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
       };
       if (createForm.designation.trim()) body.designation = createForm.designation.trim();
       if (createForm.module) body.module = createForm.module;
+      if (createForm.leavePolicyId) body.leavePolicyId = parseInt(createForm.leavePolicyId);
       await apiFetch("/users", { method: "POST", body: JSON.stringify(body) });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
@@ -539,6 +554,20 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                     onChange={(val) => setCreateForm((f) => ({ ...f, module: val }))}
                     placeholder="— None —"
                     options={[{ value: "", label: "None" }, ...SAP_MODULES]}
+                  />
+                </div>
+
+                {/* Leave Policy */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Leave Policy <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={createForm.leavePolicyId}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, leavePolicyId: val }))}
+                    placeholder="— No policy —"
+                    options={[
+                      { value: "", label: "No policy" },
+                      ...policies.map((p) => ({ value: String(p.id), label: p.name })),
+                    ]}
                   />
                 </div>
 

@@ -22,6 +22,8 @@ import { parseUTC } from "@/lib/date";
 type UserDetail = {
   id: number; name: string; email: string; role: string;
   status: string; designation?: string; module?: string | null;
+  leavePolicyId?: number | null;
+  leavePolicy?: { id: number; name: string; monthlyQuota: number } | null;
   manager?: { name: string };
 };
 
@@ -82,9 +84,12 @@ export default function UserDetailPage() {
 
   /* edit profile modal */
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "" });
+  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "" });
   const [savingEdit, setSavingEdit]       = useState(false);
   const [editErr, setEditErr]             = useState("");
+
+  /* leave policies */
+  const [policies, setPolicies] = useState<{ id: number; name: string }[]>([]);
 
   /* password change */
   const [showPwdModal, setShowPwdModal]   = useState(false);
@@ -102,6 +107,12 @@ export default function UserDetailPage() {
     catch { return ""; }
   })();
   const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
+
+  useEffect(() => {
+    apiFetch("/leave-policies")
+      .then((d) => setPolicies(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -144,12 +155,13 @@ export default function UserDetailPage() {
       const updated = await apiFetch(`/users/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name:        editForm.name.trim(),
-          designation: editForm.designation.trim() || null,
-          module:      editForm.module || null,
+          name:          editForm.name.trim(),
+          designation:   editForm.designation.trim() || null,
+          module:        editForm.module || null,
+          leavePolicyId: editForm.leavePolicyId ? parseInt(editForm.leavePolicyId) : null,
         }),
       });
-      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module } : u);
+      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy } : u);
       setShowEditModal(false);
     } catch (e: any) {
       setEditErr(e.message ?? "Failed to update profile.");
@@ -254,7 +266,7 @@ export default function UserDetailPage() {
           {user.designation && <p className="text-xs text-slate-400 mt-0.5">{user.designation}</p>}
           {user.manager && <p className="text-xs text-slate-400 mt-0.5">Manager: {user.manager.name}</p>}
 
-          {/* SAP Module */}
+          {/* SAP Module + Leave Policy */}
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             {user.module ? (
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700">
@@ -263,6 +275,13 @@ export default function UserDetailPage() {
             ) : (
               <span className="text-xs text-slate-400 italic">No SAP module assigned</span>
             )}
+            {user.leavePolicy ? (
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                {user.leavePolicy.name} ({user.leavePolicy.monthlyQuota}/mo)
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400 italic">No leave policy</span>
+            )}
           </div>
 
           {/* Admin actions */}
@@ -270,7 +289,7 @@ export default function UserDetailPage() {
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4">
               <button
                 onClick={() => {
-                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "" });
+                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "" });
                   setEditErr("");
                   setShowEditModal(true);
                 }}
@@ -465,6 +484,20 @@ export default function UserDetailPage() {
                     options={[
                       { value: "", label: "No module" },
                       ...SAP_MODULES.map((m) => ({ value: m.value, label: m.label })),
+                    ]}
+                  />
+                </div>
+
+                {/* Leave Policy */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Leave Policy <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={editForm.leavePolicyId}
+                    onChange={(val) => setEditForm((f) => ({ ...f, leavePolicyId: val }))}
+                    placeholder="— No policy —"
+                    options={[
+                      { value: "", label: "No policy" },
+                      ...policies.map((p) => ({ value: String(p.id), label: p.name })),
                     ]}
                   />
                 </div>
