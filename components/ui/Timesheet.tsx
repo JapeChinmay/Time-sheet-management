@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   format, startOfWeek, addDays, subDays,
-  isSameDay, getDay, isAfter,
+  isSameDay, isAfter, eachDayOfInterval,
+  startOfMonth, isSameMonth, addMonths, subMonths,
 } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock, Lock, Palmtree } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 
 type Project = { id: number; name: string };
 type Task    = { id: number; name: string; projectId: number };
+type EntryStatus = "PENDING" | "APPROVED" | "REJECTED";
+type LeaveRange  = { startDate: string; endDate: string; type: string };
 type Entry   = {
   id?: number;
   date: Date;
@@ -21,6 +24,7 @@ type Entry   = {
   category?: "BENCH" | "LEARNING";
   taskId?: number; taskName?: string;
   hours: number; description?: string;
+  status?: EntryStatus;
 };
 
 const SPECIAL: Record<string, { label: string; sentinel: string; emoji: string }> = {
@@ -32,7 +36,7 @@ const SENTINEL_TO_CATEGORY: Record<string, "BENCH" | "LEARNING"> = {
   __learning__: "LEARNING",
 };
 const isSpecialSentinel = (v: string) => v === "__bench__" || v === "__learning__";
-type FormRow = { id?: number; projectId: string; taskId: string; hours: string; description: string };
+type FormRow = { id?: number; projectId: string; taskId: string; hours: string; description: string; locked?: boolean };
 
 const COLORS = [
   "bg-indigo-50 border-indigo-200 text-indigo-700",
@@ -49,10 +53,180 @@ const DOT_COLORS = [
   "bg-pink-400","bg-rose-400","bg-sky-400","bg-teal-400",
 ];
 
+/* ════════════════════════════════════════════════════════════════════════
+   WeekPicker — click the week label to jump to any week of any year
+   ════════════════════════════════════════════════════════════════════════ */
+function WeekPicker({
+  value,
+  maxWeekStart,
+  onChange,
+}: {
+  value: Date;
+  maxWeekStart: Date;
+  onChange: (ws: Date) => void;
+}) {
+  const [open, setOpen]               = useState(false);
+  const [pickerMonth, setPickerMonth] = useState<Date>(() => startOfMonth(value));
+  const ref = useRef<HTMLDivElement>(null);
+
+  /* sync picker month when parent navigates prev/next */
+  useEffect(() => { setPickerMonth(startOfMonth(value)); }, [value]);
+
+  /* close on outside click */
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  /* build 6 rows × 7 cols, Mon-aligned */
+  const calStart = startOfWeek(startOfMonth(pickerMonth), { weekStartsOn: 1 });
+  const weeks: Date[][] = Array.from({ length: 6 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => addDays(calStart, w * 7 + d))
+  );
+
+  const isSelectedWeek = (row: Date[]) => isSameDay(row[0], value);
+  const isFutureWeek   = (row: Date[]) => isAfter(row[0], maxWeekStart);
+  const isOnMaxMonth   = isSameMonth(pickerMonth, maxWeekStart);
+  const today          = new Date();
+
+  const selectWeek = (row: Date[]) => {
+    if (isFutureWeek(row)) return;
+    onChange(row[0]);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      {/* ── Trigger ── */}
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="flex flex-col items-center hover:bg-slate-50 rounded-lg px-4 py-1.5 transition group"
+      >
+        <p className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition">
+          {format(value, "MMM d")} – {format(addDays(value, 6), "MMM d, yyyy")}
+        </p>
+        {isSameDay(value, maxWeekStart) ? (
+          <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full mt-0.5">
+            Current week
+          </span>
+        ) : (
+          <span className="text-[10px] text-slate-400 mt-0.5">
+            Click to pick a week ▾
+          </span>
+        )}
+      </button>
+
+      {/* ── Dropdown calendar ── */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 w-72"
+          >
+            {/* Month navigation */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={() => setPickerMonth((m) => subMonths(m, 1))}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-500"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <p className="text-sm font-semibold text-slate-800">
+                {format(pickerMonth, "MMMM yyyy")}
+              </p>
+              <button
+                onClick={() => setPickerMonth((m) => addMonths(m, 1))}
+                disabled={isOnMaxMonth}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+
+            {/* Day-of-week headers */}
+            <div className="grid grid-cols-7 mb-1">
+              {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
+                <span key={d} className="text-center text-[10px] font-semibold text-slate-400 py-0.5">
+                  {d}
+                </span>
+              ))}
+            </div>
+
+            {/* Week rows — each full row is a selectable week */}
+            <div className="space-y-0.5">
+              {weeks.map((row, wi) => {
+                const hasCurrentMonth = row.some((d) => isSameMonth(d, pickerMonth));
+                if (!hasCurrentMonth) return null;
+
+                const selected = isSelectedWeek(row);
+                const future   = isFutureWeek(row);
+
+                return (
+                  <button
+                    key={wi}
+                    onClick={() => selectWeek(row)}
+                    disabled={future}
+                    title={future ? "Future week — not available" : `Select week of ${format(row[0], "MMM d")}`}
+                    className={`w-full grid grid-cols-7 rounded-lg transition-all
+                      ${selected
+                        ? "bg-slate-900 shadow-sm"
+                        : future
+                        ? "opacity-30 cursor-not-allowed"
+                        : "hover:bg-indigo-50 cursor-pointer"
+                      }`}
+                  >
+                    {row.map((day, di) => {
+                      const inMonth = isSameMonth(day, pickerMonth);
+                      const isToday = isSameDay(day, today);
+                      return (
+                        <span
+                          key={di}
+                          className={`py-1.5 text-center text-xs rounded-md font-medium
+                            ${selected
+                              ? "text-white"
+                              : !inMonth
+                              ? "text-slate-300"
+                              : isToday
+                              ? "text-indigo-600 font-bold"
+                              : "text-slate-700"
+                            }`}
+                        >
+                          {format(day, "d")}
+                        </span>
+                      );
+                    })}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Jump to current week shortcut */}
+            {!isSameDay(value, maxWeekStart) && (
+              <button
+                onClick={() => { onChange(maxWeekStart); setOpen(false); }}
+                className="mt-3 w-full text-xs font-medium text-indigo-600 hover:text-indigo-700 py-1.5 rounded-lg hover:bg-indigo-50 transition border border-transparent hover:border-indigo-100"
+              >
+                ↩ Jump to current week
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Timesheet() {
   const [view, setView] = useState<"weekly" | "daily">("weekly");
-  const [projects, setProjects]   = useState<Project[]>([]);
-  const [entries, setEntries]     = useState<Entry[]>([]);
+  const [projects, setProjects]         = useState<Project[]>([]);
+  const [entries, setEntries]           = useState<Entry[]>([]);
+  const [approvedLeaves, setApprovedLeaves] = useState<LeaveRange[]>([]);
   const [dailyDate, setDailyDate] = useState<Date>(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
@@ -70,22 +244,61 @@ export default function Timesheet() {
   /* snapshot of existing rows at modal-open time, keyed by entry id */
   const originalRowsRef = useRef<Record<number, FormRow>>({});
 
-  const today     = new Date(); today.setHours(0, 0, 0, 0);
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const days      = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
+  const today            = new Date(); today.setHours(0, 0, 0, 0);
+  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today, { weekStartsOn: 1 }));
+  const days        = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
   const isFutureDay = (d: Date) => isAfter(d, today);
 
-  useEffect(() => {
-    loadProjects();
-    loadEntriesForWeek(weekStart);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const isCurrentWeek = isSameDay(weekStart, currentWeekStart);
+
+  const goToPrevWeek = () => setWeekStart((ws) => subDays(ws, 7));
+  const goToNextWeek = () => {
+    if (isCurrentWeek) return;
+    setWeekStart((ws) => addDays(ws, 7));
+  };
+
+  useEffect(() => { loadProjects(); loadLeaves(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadEntriesForWeek(weekStart); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Set of "yyyy-MM-dd" strings that are blocked due to an approved leave. */
+  const blockedDates = useMemo<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const leave of approvedLeaves) {
+      const days = eachDayOfInterval({
+        start: new Date(leave.startDate + "T00:00:00"),
+        end:   new Date(leave.endDate   + "T00:00:00"),
+      });
+      days.forEach((d) => set.add(format(d, "yyyy-MM-dd")));
+    }
+    return set;
+  }, [approvedLeaves]);
+
+  /** Returns the leave info for a given day if it is blocked, or undefined otherwise. */
+  const getLeaveForDay = (date: Date): LeaveRange | undefined => {
+    const key = format(date, "yyyy-MM-dd");
+    if (!blockedDates.has(key)) return undefined;
+    return approvedLeaves.find(
+      (l) => key >= l.startDate && key <= l.endDate,
+    );
+  };
 
   const loadProjects = async () => {
     try {
       const res = await apiFetch("/projects");
       setProjects(Array.isArray(res) ? res : res.data ?? []);
     } catch (e) { console.error(e); }
+  };
+
+  const loadLeaves = async () => {
+    try {
+      const res: any[] = await apiFetch("/leaves/mine");
+      const approved = (Array.isArray(res) ? res : []).filter(
+        (l) => l.status === "APPROVED",
+      ) as LeaveRange[];
+      setApprovedLeaves(approved);
+    } catch (e) { console.error("Failed to load leaves:", e); }
   };
 
   const fetchTasksForProject = async (projectId: number): Promise<Task[]> => {
@@ -119,6 +332,7 @@ export default function Timesheet() {
           taskName:    t.task?.name ?? undefined,
           hours:       t.hours,
           description: t.description ?? undefined,
+          status:      (t.status ?? "PENDING") as EntryStatus,
         };
       });
       setEntries((prev) => [
@@ -133,13 +347,28 @@ export default function Timesheet() {
     return date >= ws && date <= we;
   };
 
-  const getEntriesForDay = (date: Date) => entries.filter((e) => isSameDay(e.date, date));
-  const getTotalHours    = (date: Date) => getEntriesForDay(date).reduce((s, e) => s + e.hours, 0);
-  const getColor         = (i: number) => COLORS[i % COLORS.length];
-  const getDotColor      = (i: number) => DOT_COLORS[i % DOT_COLORS.length];
+  const getEntriesForDay   = (date: Date) => entries.filter((e) => isSameDay(e.date, date));
+  const getTotalHours      = (date: Date) => getEntriesForDay(date).reduce((s, e) => s + e.hours, 0);
+  const getColor           = (i: number) => COLORS[i % COLORS.length];
+  const getDotColor        = (i: number) => DOT_COLORS[i % DOT_COLORS.length];
+
+  /** True when ALL existing entries for a day are APPROVED (day is fully locked) */
+  const isDayFullyLocked   = (date: Date) => {
+    const dayEntries = getEntriesForDay(date);
+    return dayEntries.length > 0 && dayEntries.every((e) => e.status === "APPROVED");
+  };
+  /** True when at least one entry for the day is APPROVED */
+  const isDayPartiallyLocked = (date: Date) => getEntriesForDay(date).some((e) => e.status === "APPROVED");
+
+  const STATUS_BADGE: Record<EntryStatus, string> = {
+    PENDING:  "bg-amber-50 text-amber-700 border-amber-200",
+    APPROVED: "bg-green-50 text-green-700 border-green-200",
+    REJECTED: "bg-red-50   text-red-600   border-red-200",
+  };
 
   const openModal = (date: Date) => {
     if (isFutureDay(date)) return;
+    if (getLeaveForDay(date)) return;   // blocked — on approved leave
     setSelectedDate(date);
     setRemovedIds([]);
     setSaveError("");
@@ -153,6 +382,7 @@ export default function Timesheet() {
           taskId:      e.taskId ? String(e.taskId) : "",
           hours:       String(e.hours),
           description: e.description ?? "",
+          locked:      e.status === "APPROVED",   // ← lock approved entries
         }))
       : [{ projectId: "", taskId: "", hours: "", description: "" }];
     setFormRows(rows);
@@ -179,6 +409,7 @@ export default function Timesheet() {
 
   const removeRow = (i: number) => {
     const row = formRows[i];
+    if (row.locked) return;                        // ← block deleting approved entries
     if (row.id) setRemovedIds((prev) => [...prev, row.id!]);
     setFormRows((p) => p.filter((_, idx) => idx !== i));
     setTaskOptions((prev) => {
@@ -210,6 +441,7 @@ export default function Timesheet() {
   };
 
   const deleteEntry = async (entry: Entry) => {
+    if (entry.status === "APPROVED") return;       // ← block deleting approved entries
     if (!entry.id) {
       setEntries((prev) => prev.filter((e) => e !== entry));
       return;
@@ -254,6 +486,7 @@ export default function Timesheet() {
       // patch changed existing rows / post new rows
       await Promise.all(
         formRows.map(async (row) => {
+          if (row.locked) return;                  // ← never touch approved entries
           const hours = Number(row.hours);
           if (!row.projectId || !hours || hours <= 0) return;
           if (!rowHasChanged(row)) return; // skip unchanged existing entries
@@ -329,43 +562,127 @@ export default function Timesheet() {
       <AnimatePresence mode="wait">
         {view === "weekly" && (
           <motion.div key="weekly" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+
+            {/* ── Week navigation bar ── */}
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3 mb-4">
+              <button
+                onClick={goToPrevWeek}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition font-medium"
+              >
+                <ChevronLeft size={16} />
+                Prev week
+              </button>
+
+              <WeekPicker
+                value={weekStart}
+                maxWeekStart={currentWeekStart}
+                onChange={setWeekStart}
+              />
+
+              <button
+                onClick={goToNextWeek}
+                disabled={isCurrentWeek}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Next week
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
             <div className="grid grid-cols-7 gap-3">
               {days.map((day) => {
-                const dayEntries = getEntriesForDay(day);
-                const total      = getTotalHours(day);
-                const isFuture   = isFutureDay(day);
-                const isToday    = isSameDay(day, today);
+                const dayEntries  = getEntriesForDay(day);
+                const total       = getTotalHours(day);
+                const isFuture    = isFutureDay(day);
+                const isToday     = isSameDay(day, today);
+                const fullyLocked = isDayFullyLocked(day);
+                const leaveInfo   = getLeaveForDay(day);
+                const isOnLeave   = !!leaveInfo;
+                /* still clickable when partially locked (can view + add new entries) */
+                const clickable   = !isFuture && !isOnLeave;
+
                 return (
                   <motion.div
                     key={day.toISOString()}
-                    whileHover={!isFuture ? { y: -3 } : {}}
-                    onClick={() => openModal(day)}
-                    className={`border rounded-xl p-3 min-h-[160px] transition select-none ${
-                      isFuture  ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
-                      : isToday ? "bg-slate-900 border-slate-800 cursor-pointer text-white"
+                    whileHover={clickable ? { y: -3 } : {}}
+                    onClick={() => clickable && openModal(day)}
+                    className={`border rounded-xl p-3 min-h-[160px] transition select-none relative ${
+                      isOnLeave   ? "bg-sky-50 border-sky-200 cursor-not-allowed"
+                      : isFuture  ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
+                      : fullyLocked ? "bg-green-50 border-green-200 cursor-pointer"
+                      : isToday   ? "bg-slate-900 border-slate-800 cursor-pointer text-white"
                       : dayEntries.length ? "bg-white border-slate-200 cursor-pointer shadow-sm"
                       : "bg-white border-slate-200 cursor-pointer hover:shadow-sm"
                     }`}
                   >
-                    <p className={`text-xs ${isToday ? "text-slate-300" : "text-slate-400"}`}>{format(day, "EEE")}</p>
-                    <p className={`text-xl font-bold mt-0.5 ${isToday ? "text-white" : "text-slate-900"}`}>{format(day, "d")}</p>
-                    <div className="mt-3 space-y-1">
-                      {dayEntries.map((e, i) => (
-                        <div key={i} className={`text-[10px] px-2 py-1 rounded-md border font-medium truncate ${isToday ? "bg-white/10 border-white/20 text-white" : getColor(i)}`}>
-                          {e.projectName}{e.taskName ? ` · ${e.taskName}` : ""} · {e.hours}h
+                    {/* On-leave badge */}
+                    {isOnLeave && (
+                      <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-sky-100 text-sky-700 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-sky-200">
+                        <Palmtree size={8} /> Leave
+                      </div>
+                    )}
+
+                    {/* Fully-locked overlay badge */}
+                    {!isOnLeave && fullyLocked && (
+                      <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-green-100 text-green-700 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-green-200">
+                        <Lock size={8} /> Approved
+                      </div>
+                    )}
+
+                    <p className={`text-xs ${
+                      isOnLeave ? "text-sky-400"
+                      : isToday && !fullyLocked ? "text-slate-300"
+                      : fullyLocked ? "text-green-500"
+                      : "text-slate-400"
+                    }`}>{format(day, "EEE")}</p>
+
+                    <p className={`text-xl font-bold mt-0.5 ${
+                      isOnLeave ? "text-sky-700"
+                      : isToday && !fullyLocked ? "text-white"
+                      : fullyLocked ? "text-green-800"
+                      : "text-slate-900"
+                    }`}>{format(day, "d")}</p>
+
+                    {isOnLeave ? (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-sky-600 bg-sky-100 border border-sky-200 px-2 py-1 rounded-md">
+                          <Palmtree size={9} />
+                          <span className="truncate">{leaveInfo!.type.replace(/_/g, " ")}</span>
                         </div>
-                      ))}
-                    </div>
-                    {total > 0 && <p className={`text-xs mt-2 font-semibold ${isToday ? "text-slate-300" : "text-slate-600"}`}>{total}h</p>}
-                    {!isFuture && dayEntries.length === 0 && <p className="text-[10px] mt-3 text-red-400">Missing log</p>}
-                    {isFuture && <p className={`text-[10px] mt-3 ${isToday ? "text-slate-400" : "text-slate-300"}`}>Locked</p>}
+                        <p className="text-[9px] text-sky-400 mt-1.5">No timesheet entry allowed</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-3 space-y-1">
+                          {dayEntries.map((e, i) => (
+                            <div key={i} className={`text-[10px] px-2 py-1 rounded-md border font-medium truncate flex items-center gap-1 ${
+                              e.status === "APPROVED" ? "bg-green-50 border-green-200 text-green-700"
+                              : e.status === "REJECTED" ? "bg-red-50 border-red-200 text-red-600"
+                              : isToday ? "bg-white/10 border-white/20 text-white"
+                              : getColor(i)
+                            }`}>
+                              {e.status === "APPROVED" && <Lock size={8} className="flex-shrink-0" />}
+                              <span className="truncate">{e.projectName}{e.taskName ? ` · ${e.taskName}` : ""} · {e.hours}h</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {total > 0 && (
+                          <p className={`text-xs mt-2 font-semibold ${
+                            fullyLocked ? "text-green-700" : isToday ? "text-slate-300" : "text-slate-600"
+                          }`}>{total}h</p>
+                        )}
+                        {!isFuture && dayEntries.length === 0 && <p className="text-[10px] mt-3 text-red-400">Missing log</p>}
+                        {isFuture && <p className={`text-[10px] mt-3 ${isToday ? "text-slate-400" : "text-slate-300"}`}>Locked</p>}
+                      </>
+                    )}
                   </motion.div>
                 );
               })}
             </div>
 
             {/* Weekly summary */}
-            <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+            <div key={weekStart.toISOString()} className="mt-4 bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-6">
                 <div>
                   <p className="text-xs text-slate-400">Week total</p>
@@ -404,32 +721,68 @@ export default function Timesheet() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              {/* On-leave banner for daily view */}
+              {getLeaveForDay(dailyDate) && (
+                <div className="flex items-center gap-3 px-5 py-3 bg-sky-50 border-b border-sky-200">
+                  <Palmtree size={16} className="text-sky-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-sky-700">On Approved Leave</p>
+                    <p className="text-xs text-sky-500">
+                      {getLeaveForDay(dailyDate)!.type.replace(/_/g, " ")} leave — timesheet entries are blocked for this day.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-slate-900">Work Entries</p>
                   <p className="text-xs text-slate-400">{getTotalHours(dailyDate)}h logged</p>
                 </div>
-                {!isFutureDay(dailyDate) && (
-                  <button onClick={() => openModal(dailyDate)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-700 transition">
-                    <Plus size={14} /> Edit
-                  </button>
+                {!isFutureDay(dailyDate) && !getLeaveForDay(dailyDate) && (
+                  /* Show Edit button; if day is fully locked show a read-only indicator instead */
+                  isDayFullyLocked(dailyDate) ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 font-medium">
+                      <Lock size={13} /> All Approved
+                    </div>
+                  ) : (
+                    <button onClick={() => openModal(dailyDate)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-700 transition">
+                      <Plus size={14} /> Edit
+                    </button>
+                  )
                 )}
               </div>
 
               {getEntriesForDay(dailyDate).length === 0 ? (
                 <div className="px-5 py-10 text-center">
-                  {isFutureDay(dailyDate)
+                  {getLeaveForDay(dailyDate)
+                    ? <><Palmtree size={28} className="mx-auto text-sky-300 mb-2" /><p className="text-sky-500 text-sm font-medium">You&apos;re on leave today</p><p className="text-sky-400 text-xs mt-1">Enjoy your time off!</p></>
+                    : isFutureDay(dailyDate)
                     ? <p className="text-slate-400 text-sm">This day is locked.</p>
                     : <><p className="text-slate-500 font-medium">No entries yet</p><p className="text-slate-400 text-xs mt-1">Click Edit to log your work.</p></>}
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {getEntriesForDay(dailyDate).map((e, i) => (
-                    <div key={i} className="px-5 py-4 flex items-center gap-4 group">
-                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getDotColor(i)}`} />
+                  {getEntriesForDay(dailyDate).map((e, i) => {
+                    const isApproved = e.status === "APPROVED";
+                    return (
+                    <div key={i} className={`px-5 py-4 flex items-center gap-4 group ${isApproved ? "bg-green-50/40" : ""}`}>
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isApproved ? "bg-green-400" : getDotColor(i)}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-slate-900 truncate">{e.projectName}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-slate-900 truncate">{e.projectName}</p>
+                          {isApproved && (
+                            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-700 bg-green-100 border border-green-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              <Lock size={8} /> Approved
+                            </span>
+                          )}
+                          {e.status === "REJECTED" && (
+                            <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              Rejected
+                            </span>
+                          )}
+                        </div>
                         {e.taskName && (
                           <p className="flex items-center gap-1 text-xs text-indigo-600 mt-0.5">
                             <ListTodo size={10} /> {e.taskName}
@@ -437,16 +790,22 @@ export default function Timesheet() {
                         )}
                         {e.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{e.description}</p>}
                       </div>
-                      <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${getColor(i)}`}>{e.hours}h</span>
-                      <button
-                        onClick={() => deleteEntry(e)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-400 transition rounded-lg hover:bg-red-50"
-                        title="Delete entry"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${isApproved ? "bg-green-50 border-green-200 text-green-700" : getColor(i)}`}>{e.hours}h</span>
+                      {/* Only show delete for non-approved entries */}
+                      {!isApproved ? (
+                        <button
+                          onClick={() => deleteEntry(e)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-400 transition rounded-lg hover:bg-red-50"
+                          title="Delete entry"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : (
+                        <div className="w-[30px]" /> /* spacer to keep layout aligned */
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -490,8 +849,35 @@ export default function Timesheet() {
 
                   <div className="px-6 py-4 space-y-4 max-h-[400px] overflow-auto">
                     {formRows.map((row, i) => {
-                      const tasks   = taskOptions[i] ?? [];
+                      const tasks      = taskOptions[i] ?? [];
                       const isExisting = !!row.id;
+
+                      /* ── LOCKED (approved) row — read-only display ── */
+                      if (row.locked) {
+                        const projName = isSpecialSentinel(row.projectId)
+                          ? (row.projectId === "__bench__" ? "🪑 Bench" : "📚 Learning")
+                          : (projects.find((p) => String(p.id) === row.projectId)?.name ?? row.projectId);
+                        const taskName = tasks.find((t) => String(t.id) === row.taskId)?.name;
+                        return (
+                          <div key={i} className="flex gap-3 items-start rounded-xl p-3 -mx-1 bg-green-50 border border-green-200">
+                            <Lock size={14} className="text-green-500 flex-shrink-0 mt-1" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wide">Approved — read only</span>
+                              </div>
+                              <p className="text-sm font-medium text-slate-900 truncate">{projName}</p>
+                              {taskName && <p className="text-xs text-indigo-600 mt-0.5">{taskName}</p>}
+                              {row.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{row.description}</p>}
+                            </div>
+                            <span className="text-sm font-bold text-green-700 bg-green-100 border border-green-200 px-3 py-1 rounded-full flex-shrink-0">
+                              {row.hours}h
+                            </span>
+                            {/* no delete button for locked rows */}
+                          </div>
+                        );
+                      }
+
+                      /* ── Editable row ── */
                       return (
                         <div key={i} className={`flex gap-2 items-start rounded-xl p-3 -mx-1 ${isExisting ? "bg-slate-50 border border-slate-200" : ""}`}>
                           <div className="flex-1 space-y-2">

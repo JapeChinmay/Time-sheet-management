@@ -5,30 +5,49 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Users, Clock, Calendar, User, Briefcase,
-  AlertCircle, Pencil, X, Check, UserPlus, MapPin, Building2,
+  AlertCircle, Pencil, X, Check, UserPlus, MapPin,
   Sun, Coffee, ListTodo, Plus, Trash2, CheckCircle2, Circle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
+import TimePicker from "@/components/ui/TimePicker";
+import { parseUTC, fmtDate as fmtDateUTC } from "@/lib/date";
 
-type UserOption = { id: number; name: string; email: string; role: string; designation?: string };
+type UserOption = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
 type Member = UserOption;
 type TimesheetEntry = { id: number; date: string; hours: number; description?: string; status: string; user?: { name: string } };
 type TaskItem = {
   id: number;
   name: string;
-  status: "ACTIVE" | "COMPLETED";
+  status: "CREATED" | "ASSIGNED" | "WORK_IN_PROGRESS" | "ON_HOLD" | "EXTERNAL_DEPENDENCY" | "COMPLETED";
+  module?: string | null;
   projectId: number;
   createdAt: string;
   assignees?: UserOption[];
 };
 
+const SAP_MODULES = [
+  { value: "SAP_BTP",  label: "SAP BTP"  },
+  { value: "SAP_MM",   label: "SAP MM"   },
+  { value: "SAP_FICO", label: "SAP FICO" },
+  { value: "SAP_SF",   label: "SAP SF"   },
+  { value: "SAP_SD",   label: "SAP SD"   },
+  { value: "SAP_HCM",  label: "SAP HCM"  },
+  { value: "SAP_ABAP", label: "SAP ABAP" },
+  { value: "SAP_PS",   label: "SAP PS"   },
+] as const;
+
+const MODULE_LABEL: Record<string, string> = Object.fromEntries(
+  SAP_MODULES.map((m) => [m.value, m.label])
+);
+
 type Project = {
   id: number;
   name: string;
   description?: string;
-  status: "ACTIVE" | "INACTIVE";
+  status: "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED";
   createdAt: string;
   projectManagerId?: number | null;
   projectManager?: UserOption;
@@ -84,6 +103,7 @@ export default function ProjectDetailPage() {
   const [callerRole, setCallerRole] = useState("");
 
   const [allUsers, setAllUsers] = useState<UserOption[]>([]);
+  const [responsibilities, setResponsibilities] = useState<Record<number, number | null>>({});
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [showPmModal, setShowPmModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -102,6 +122,15 @@ export default function ProjectDetailPage() {
     setProject(proj);
     setTimesheets(Array.isArray(ts) ? ts : ts.data ?? []);
     setTasks(Array.isArray(taskRes) ? taskRes : taskRes.data ?? []);
+
+    /* Load responsibility percentages for display in Team Members card */
+    try {
+      const respRows: { userId: number; responsibility: number | null }[] =
+        await apiFetch(`/projects/${id}/members/responsibilities`);
+      const map: Record<number, number | null> = {};
+      respRows.forEach((r) => { map[r.userId] = r.responsibility; });
+      setResponsibilities(map);
+    } catch { /* ignore — non-critical */ }
   }, [id]);
 
   useEffect(() => {
@@ -180,7 +209,7 @@ export default function ProjectDetailPage() {
         <InfoCard icon={<Clock size={16} />}     label="Total Hours" value={`${totalHours}h`} />
         <InfoCard icon={<Users size={16} />}     label="Members"     value={String(project.members?.length ?? 0)} />
         <InfoCard icon={<Briefcase size={16} />} label="Timesheets"  value={String(timesheets.length)} />
-        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? format(new Date(project.createdAt), "MMM d, yyyy") : "—"} />
+        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDateUTC(parseUTC(project.createdAt)) : "—"} />
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -271,18 +300,26 @@ export default function ProjectDetailPage() {
               <p className="text-sm text-slate-400 px-5 py-4">{isAdmin ? "Click Manage to add members." : "No members assigned."}</p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {project.members.map((m) => (
-                  <div key={m.id} className="px-5 py-3 flex items-center gap-3">
-                    <Avatar name={m.name} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{m.name}</p>
-                      {m.designation && <p className="text-xs text-slate-400 truncate">{m.designation}</p>}
+                {project.members.map((m) => {
+                  const pct = responsibilities[m.id];
+                  return (
+                    <div key={m.id} className="px-5 py-3 flex items-center gap-3">
+                      <Avatar name={m.name} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{m.name}</p>
+                        {m.designation && <p className="text-xs text-slate-400 truncate">{m.designation}</p>}
+                      </div>
+                      {pct != null && (
+                        <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex-shrink-0">
+                          {pct}%
+                        </span>
+                      )}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600"}`}>
+                        {m.role}
+                      </span>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600"}`}>
-                      {m.role}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -294,7 +331,7 @@ export default function ProjectDetailPage() {
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tasks</p>
               </div>
               {isAdmin && (
-                <button onClick={() => setShowAddTaskModal(true)}
+                <button onClick={() => router.push(`/employee/tasks?createTask=1&projectId=${project.id}`)}
                   className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                   <Plus size={12} /> Add Task
                 </button>
@@ -317,7 +354,7 @@ export default function ProjectDetailPage() {
                           onClick={async () => {
                             await apiFetch(`/tasks/${t.id}`, {
                               method: "PATCH",
-                              body: JSON.stringify({ status: done ? "ACTIVE" : "COMPLETED" }),
+                              body: JSON.stringify({ status: done ? "CREATED" : "COMPLETED" }),
                             });
                             await loadProject();
                           }}
@@ -334,7 +371,14 @@ export default function ProjectDetailPage() {
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${done ? "line-through text-slate-400" : "text-slate-900"}`}>{t.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`text-sm font-medium truncate ${done ? "line-through text-slate-400" : "text-slate-900"}`}>{t.name}</p>
+                          {t.module && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 flex-shrink-0">
+                              {MODULE_LABEL[t.module] ?? t.module}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-400 mt-0.5">
                           {t.assignees?.length
                             ? `${t.assignees.map((a) => a.name).join(", ")}`
@@ -343,10 +387,12 @@ export default function ProjectDetailPage() {
                       </div>
                       {isAdmin && (
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <button onClick={() => { ensureUsers(); setTaskAssignModal(t); }}
-                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                            Assign
-                          </button>
+                          {!(t.assignees?.length) && (
+                            <button onClick={() => { ensureUsers(); setTaskAssignModal(t); }}
+                              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                              Assign
+                            </button>
+                          )}
                           <button onClick={async () => {
                             await apiFetch(`/tasks/${t.id}`, { method: "DELETE" });
                             await loadProject();
@@ -422,7 +468,7 @@ export default function ProjectDetailPage() {
       </AnimatePresence>
       <AnimatePresence>
         {showAddTaskModal && (
-          <AddTaskModal projectId={project.id}
+          <AddTaskModal projectId={project.id} allUsers={allUsers}
             onClose={() => setShowAddTaskModal(false)}
             onSaved={async () => { setShowAddTaskModal(false); await loadProject(); }} />
         )}
@@ -443,33 +489,115 @@ export default function ProjectDetailPage() {
 /* ─────────────────────────────────────────
    Add Task Modal
 ───────────────────────────────────────── */
-function AddTaskModal({ projectId, onClose, onSaved }: {
-  projectId: number; onClose: () => void; onSaved: () => void;
+function AddTaskModal({ projectId, allUsers, onClose, onSaved }: {
+  projectId: number; allUsers: UserOption[]; onClose: () => void; onSaved: () => void;
 }) {
-  const [name, setName]       = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [err, setErr]         = useState("");
+  const [name, setName]         = useState("");
+  const [module, setModule]     = useState("");
+  const [search, setSearch]     = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving]     = useState(false);
+  const [err, setErr]           = useState("");
+
+  /* Filter users by selected module, then by search */
+  const moduleUsers = module ? allUsers.filter((u) => u.module === module) : allUsers;
+  const filtered    = moduleUsers.filter((u) =>
+    !search.trim() ||
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggle = (id: number) =>
+    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const save = async () => {
     if (!name.trim()) { setErr("Task name is required."); return; }
     setSaving(true); setErr("");
     try {
-      await apiFetch("/tasks", { method: "POST", body: JSON.stringify({ name: name.trim(), projectId }) });
+      const body: Record<string, any> = { name: name.trim(), projectId };
+      if (module) body.module = module;
+      const task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
+      /* assign selected users */
+      await Promise.all(
+        [...selected].map((userId) =>
+          apiFetch(`/tasks/${task.id}/assignees`, { method: "POST", body: JSON.stringify({ userId }) })
+        )
+      );
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Failed to create task."); setSaving(false); }
   };
 
   return (
     <Backdrop onClose={onClose}>
-      <ModalBox>
+      <ModalBox wide>
         <ModalHeader title="Add Task" onClose={onClose} />
-        <div className="px-6 py-4 space-y-3">
+        <div className="px-6 py-4 space-y-4 max-h-[75vh] overflow-y-auto">
           <Field label="Task Name *">
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && save()}
-              placeholder="e.g. Implement login flow"
+              placeholder="e.g. Configure SAP BTP tenant"
               className={INPUT} />
           </Field>
+
+          <Field label="SAP Module">
+            <Combobox
+              value={module}
+              onChange={(val) => { setModule(val); setSelected(new Set()); }}
+              placeholder="— No module —"
+              searchable
+              options={[
+                { value: "", label: "No module" },
+                ...SAP_MODULES.map((m) => ({ value: m.value, label: m.label })),
+              ]}
+            />
+          </Field>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              Assign To
+              {selected.size > 0 && (
+                <span className="ml-2 font-semibold text-indigo-600">{selected.size} selected</span>
+              )}
+              {module && (
+                <span className="ml-2 font-normal text-slate-400">
+                  — {MODULE_LABEL[module]} members only
+                  {moduleUsers.length === 0 && " (none)"}
+                </span>
+              )}
+            </label>
+            <input
+              placeholder="Search users…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${INPUT} mb-2`}
+            />
+            <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-44 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-5">
+                  {module && moduleUsers.length === 0
+                    ? `No users in ${MODULE_LABEL[module]} yet`
+                    : "No users found"}
+                </p>
+              ) : filtered.map((u) => {
+                const checked = selected.has(u.id);
+                return (
+                  <label key={u.id}
+                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 transition ${checked ? "bg-indigo-50/60" : ""}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(u.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
+                      <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
+                      {u.role}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           {err && <p className="text-xs text-red-500">{err}</p>}
         </div>
         <ModalFooter onCancel={onClose} onSave={save} saving={saving} saveLabel="Create Task" />
@@ -555,7 +683,7 @@ function EditDetailsModal({ project, onClose, onSaved }: {
   const [form, setForm] = useState({
     name:           project.name ?? "",
     description:    project.description ?? "",
-    status:         project.status ?? "ACTIVE",
+    status:         project.status ?? "CREATED",
     startDate:      project.startDate ?? "",
     endDate:        project.endDate ?? "",
     sourceCompany:  project.sourceCompany ?? "",
@@ -624,7 +752,12 @@ function EditDetailsModal({ project, onClose, onSaved }: {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Status">
                 <Combobox value={form.status} onChange={setField("status")}
-                  options={[{ value: "ACTIVE", label: "Active" }, { value: "INACTIVE", label: "Inactive" }]} />
+                  options={[
+                    { value: "CREATED",   label: "Created"   },
+                    { value: "ACTIVE",    label: "Active"    },
+                    { value: "INACTIVE",  label: "Inactive"  },
+                    { value: "COMPLETED", label: "Completed" },
+                  ]} />
               </Field>
               <Field label="Project Type">
                 <Combobox value={form.projectType} onChange={setField("projectType")} placeholder="— None —"
@@ -650,10 +783,10 @@ function EditDetailsModal({ project, onClose, onSaved }: {
           <Section title="Timeline">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start Date">
-                <input type="date" value={form.startDate} onChange={set("startDate")} className={INPUT} />
+                <DatePicker value={form.startDate} onChange={setField("startDate")} placeholder="Start date" />
               </Field>
               <Field label="End Date">
-                <input type="date" value={form.endDate} onChange={set("endDate")} className={INPUT} />
+                <DatePicker value={form.endDate} onChange={setField("endDate")} placeholder="End date" min={form.startDate || undefined} />
               </Field>
             </div>
           </Section>
@@ -669,10 +802,10 @@ function EditDetailsModal({ project, onClose, onSaved }: {
                   placeholder="30" className={INPUT} />
               </Field>
               <Field label="Shift Start">
-                <input type="time" value={form.shiftStartTime} onChange={set("shiftStartTime")} className={INPUT} />
+                <TimePicker value={form.shiftStartTime} onChange={setField("shiftStartTime")} placeholder="Start time" />
               </Field>
               <Field label="Shift End">
-                <input type="time" value={form.shiftEndTime} onChange={set("shiftEndTime")} className={INPUT} />
+                <TimePicker value={form.shiftEndTime} onChange={setField("shiftEndTime")} placeholder="End time" />
               </Field>
             </div>
           </Section>
@@ -751,60 +884,175 @@ function PmModal({ project, users, onClose, onSaved }: {
 }
 
 /* ─────────────────────────────────────────
-   Members Modal
+   Members Modal  (with responsibility %)
 ───────────────────────────────────────── */
 function MembersModal({ project, users, onClose, onSaved }: {
   project: Project; users: UserOption[]; onClose: () => void; onSaved: () => void;
 }) {
   const currentIds = new Set((project.members ?? []).map((m) => m.id));
+
+  /* selected member ids */
   const [selected, setSelected] = useState<Set<number>>(new Set(currentIds));
+  /* responsibility map: userId → % string (editable) */
+  const [resp, setResp] = useState<Record<number, string>>({});
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+
+  /* Load existing responsibilities from server on open */
+  useEffect(() => {
+    apiFetch(`/projects/${project.id}/members/responsibilities`)
+      .then((rows: any[]) => {
+        const map: Record<number, string> = {};
+        rows.forEach((r) => {
+          map[r.userId] = r.responsibility != null ? String(r.responsibility) : "";
+        });
+        /* seed equal split for members with no existing value */
+        const ids = [...new Set([...currentIds, ...rows.map((r) => r.userId)])];
+        const noValue = ids.filter((id) => map[id] === undefined || map[id] === "");
+        if (noValue.length > 0) {
+          const totalAssigned = rows.reduce((s, r) => s + (r.responsibility ?? 0), 0);
+          const share = Math.round(((100 - totalAssigned) / noValue.length) * 10) / 10;
+          noValue.forEach((id) => { map[id] = String(share); });
+        }
+        setResp(map);
+      })
+      .catch(() => redistributeEqual(new Set(currentIds)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Spread 100% equally across the given set of ids */
+  const redistributeEqual = (ids: Set<number>) => {
+    const arr = [...ids];
+    if (!arr.length) { setResp({}); return; }
+    const each = Math.floor((100 / arr.length) * 10) / 10;
+    const last  = Math.round((100 - each * (arr.length - 1)) * 10) / 10;
+    const map: Record<number, string> = {};
+    arr.forEach((id, i) => { map[id] = String(i === arr.length - 1 ? last : each); });
+    setResp(map);
+  };
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      redistributeEqual(next);
+      return next;
+    });
+  };
+
+  const updateResp = (id: number, val: string) =>
+    setResp((prev) => ({ ...prev, [id]: val }));
+
+  const totalResp = [...selected].reduce((s, id) => s + (parseFloat(resp[id] ?? "0") || 0), 0);
+  const totalOk   = Math.abs(totalResp - 100) < 0.5;
 
   const filtered = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggle = (id: number) =>
-    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const selectedList = users.filter((u) => selected.has(u.id));
 
   const save = async () => {
     setSaving(true); setErr("");
     try {
       const toAdd    = [...selected].filter((id) => !currentIds.has(id));
       const toRemove = [...currentIds].filter((id) => !selected.has(id));
+
+      /* Add / remove members */
       await Promise.all([
         ...toAdd.map((userId)    => apiFetch(`/projects/${project.id}/members`, { method: "POST", body: JSON.stringify({ userId }) })),
         ...toRemove.map((userId) => apiFetch(`/projects/${project.id}/members/${userId}`, { method: "DELETE" })),
       ]);
+
+      /* Save responsibility percentages for all remaining members */
+      const items = [...selected].map((userId) => ({
+        userId,
+        responsibility: parseFloat(resp[userId] ?? "0") || 0,
+      }));
+      if (items.length) {
+        await apiFetch(`/projects/${project.id}/members/responsibilities`, {
+          method: "PATCH",
+          body: JSON.stringify({ items }),
+        });
+      }
+
       onSaved();
     } catch (e: any) { setErr(e.message ?? "Failed to update members."); setSaving(false); }
   };
-
-  const selectedList = users.filter((u) => selected.has(u.id));
 
   return (
     <Backdrop onClose={onClose}>
       <ModalBox wide>
         <ModalHeader title="Manage Team Members" onClose={onClose} />
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+
+          {/* ── Responsibility table ── */}
           {selectedList.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selectedList.map((u) => (
-                <span key={u.id} className="flex items-center gap-1.5 pl-2 pr-1 py-1 bg-slate-100 rounded-full text-xs font-medium text-slate-700">
-                  {u.name}
-                  <button onClick={() => toggle(u.id)} className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-slate-300 transition">
-                    <X size={10} />
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Responsibility
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => redistributeEqual(selected)}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    ⟳ Equal split
                   </button>
-                </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    totalOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                  }`}>
+                    {Math.round(totalResp * 10) / 10}%
+                  </span>
+                </div>
+              </div>
+
+              {selectedList.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-0">
+                  <Avatar name={u.name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
+                    <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <input
+                      type="number" min="0" max="100" step="0.1"
+                      value={resp[u.id] ?? ""}
+                      onChange={(e) => updateResp(u.id, e.target.value)}
+                      className="w-16 text-right border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs text-slate-400">%</span>
+                  </div>
+                  <button
+                    onClick={() => toggle(u.id)}
+                    className="text-slate-300 hover:text-red-400 transition flex-shrink-0"
+                    title="Remove member"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               ))}
+
+              {!totalOk && (
+                <p className="px-4 py-2 text-xs text-red-500 bg-red-50">
+                  Total is {Math.round(totalResp * 10) / 10}% — adjust values to reach 100%.
+                </p>
+              )}
             </div>
           )}
-          <input autoFocus placeholder="Search users…" value={search}
-            onChange={(e) => setSearch(e.target.value)} className={INPUT} />
-          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
+
+          {/* ── User search & picker ── */}
+          <input
+            autoFocus={selectedList.length === 0}
+            placeholder="Search users to add…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={INPUT}
+          />
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
             {filtered.map((u) => {
               const checked = selected.has(u.id);
               return (
@@ -819,6 +1067,11 @@ function MembersModal({ project, users, onClose, onSaved }: {
                     <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>{u.role}</span>
+                  {checked && resp[u.id] && (
+                    <span className="text-xs font-semibold text-indigo-600 flex-shrink-0 w-10 text-right">
+                      {resp[u.id]}%
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -951,8 +1204,18 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
+const PROJECT_STATUS_META: Record<string, { cls: string; label: string }> = {
+  CREATED:   { cls: "bg-blue-50 text-blue-700",    label: "Created"   },
+  ACTIVE:    { cls: "bg-green-100 text-green-700",  label: "Active"    },
+  INACTIVE:  { cls: "bg-slate-100 text-slate-500",  label: "Inactive"  },
+  COMPLETED: { cls: "bg-purple-50 text-purple-700", label: "Completed" },
+};
+
 function StatusBadge({ status }: { status: string }) {
-  return status === "ACTIVE"
-    ? <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700">Active</span>
-    : <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500">Inactive</span>;
+  const meta = PROJECT_STATUS_META[status] ?? PROJECT_STATUS_META.INACTIVE;
+  return (
+    <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${meta.cls}`}>
+      {meta.label}
+    </span>
+  );
 }
