@@ -58,8 +58,23 @@ const ROLE_PILL: Record<string, string> = {
   EXTERNAL:   "bg-violet-100 text-violet-700",
 };
 
+const ALL_WEEKDAYS = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
+const WEEKDAY_SHORT: Record<string, string> = {
+  MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed", THURSDAY: "Thu",
+  FRIDAY: "Fri", SATURDAY: "Sat", SUNDAY: "Sun",
+};
+
+const GENDER_OPTIONS = [
+  { value: "",       label: "— Not specified —" },
+  { value: "MALE",   label: "Male"              },
+  { value: "FEMALE", label: "Female"            },
+  { value: "OTHER",  label: "Other"             },
+];
+
 const EMPTY_CREATE = {
   name: "", email: "", password: "", role: "INTERNAL", designation: "", module: "", leavePolicyId: "",
+  gender: "",
+  daysOff: ["SATURDAY", "SUNDAY"] as string[],
 };
 
 function decodeToken() {
@@ -245,6 +260,8 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
       if (createForm.designation.trim()) body.designation = createForm.designation.trim();
       if (createForm.module) body.module = createForm.module;
       if (createForm.leavePolicyId) body.leavePolicyId = parseInt(createForm.leavePolicyId);
+      if (createForm.gender) body.gender = createForm.gender;
+      body.daysOff = createForm.daysOff;
       await apiFetch("/users", { method: "POST", body: JSON.stringify(body) });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
@@ -512,6 +529,17 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                   />
                 </div>
 
+                {/* Gender */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Gender <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={createForm.gender}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, gender: val }))}
+                    placeholder="— Not specified —"
+                    options={GENDER_OPTIONS}
+                  />
+                </div>
+
                 {/* Password */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Password *</label>
@@ -569,6 +597,40 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                       ...policies.map((p) => ({ value: String(p.id), label: p.name })),
                     ]}
                   />
+                </div>
+
+                {/* Days Off */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Days Off
+                    <span className="ml-1 font-normal text-slate-400">({createForm.daysOff.length} selected)</span>
+                  </label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {ALL_WEEKDAYS.map((day) => {
+                      const active = createForm.daysOff.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() =>
+                            setCreateForm((f) => ({
+                              ...f,
+                              daysOff: active
+                                ? f.daysOff.filter((d) => d !== day)
+                                : [...f.daysOff, day],
+                            }))
+                          }
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                            active
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                          }`}
+                        >
+                          {WEEKDAY_SHORT[day]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {createErr && (

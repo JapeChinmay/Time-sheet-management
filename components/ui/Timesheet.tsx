@@ -16,6 +16,11 @@ type Project = { id: number; name: string };
 type Task    = { id: number; name: string; projectId: number };
 type EntryStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveRange  = { startDate: string; endDate: string; type: string };
+
+function decodeToken() {
+  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
+  catch { return null; }
+}
 type Entry   = {
   id?: number;
   date: Date;
@@ -227,6 +232,7 @@ export default function Timesheet() {
   const [projects, setProjects]         = useState<Project[]>([]);
   const [entries, setEntries]           = useState<Entry[]>([]);
   const [approvedLeaves, setApprovedLeaves] = useState<LeaveRange[]>([]);
+  const [daysOff, setDaysOff]           = useState<string[]>([]);
   const [dailyDate, setDailyDate] = useState<Date>(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
@@ -259,7 +265,16 @@ export default function Timesheet() {
     setWeekStart((ws) => addDays(ws, 7));
   };
 
-  useEffect(() => { loadProjects(); loadLeaves(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadProjects();
+    loadLeaves();
+    const token = decodeToken();
+    if (token?.sub) {
+      apiFetch(`/users/${token.sub}`).then((u) => {
+        if (Array.isArray(u?.daysOff)) setDaysOff(u.daysOff);
+      }).catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadEntriesForWeek(weekStart); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Set of "yyyy-MM-dd" strings that are blocked due to an approved leave. */
@@ -352,6 +367,9 @@ export default function Timesheet() {
   const getColor           = (i: number) => COLORS[i % COLORS.length];
   const getDotColor        = (i: number) => DOT_COLORS[i % DOT_COLORS.length];
 
+  /** True when the date falls on one of the user's configured days off. */
+  const isDayOff = (date: Date) => daysOff.includes(format(date, "EEEE").toUpperCase());
+
   /** True when ALL existing entries for a day are APPROVED (day is fully locked) */
   const isDayFullyLocked   = (date: Date) => {
     const dayEntries = getEntriesForDay(date);
@@ -369,6 +387,7 @@ export default function Timesheet() {
   const openModal = (date: Date) => {
     if (isFutureDay(date)) return;
     if (getLeaveForDay(date)) return;   // blocked — on approved leave
+    if (isDayOff(date)) return;         // blocked — day off
     setSelectedDate(date);
     setRemovedIds([]);
     setSaveError("");
@@ -598,8 +617,9 @@ export default function Timesheet() {
                 const fullyLocked = isDayFullyLocked(day);
                 const leaveInfo   = getLeaveForDay(day);
                 const isOnLeave   = !!leaveInfo;
+                const dayOff      = isDayOff(day);
                 /* still clickable when partially locked (can view + add new entries) */
-                const clickable   = !isFuture && !isOnLeave;
+                const clickable   = !isFuture && !isOnLeave && !dayOff;
 
                 return (
                   <motion.div
@@ -608,6 +628,7 @@ export default function Timesheet() {
                     onClick={() => clickable && openModal(day)}
                     className={`border rounded-xl p-3 min-h-[160px] transition select-none relative ${
                       isOnLeave   ? "bg-sky-50 border-sky-200 cursor-not-allowed"
+                      : dayOff    ? "bg-slate-100 border-slate-200 cursor-not-allowed"
                       : isFuture  ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
                       : fullyLocked ? "bg-green-50 border-green-200 cursor-pointer"
                       : isToday   ? "bg-slate-900 border-slate-800 cursor-pointer text-white"
@@ -622,6 +643,13 @@ export default function Timesheet() {
                       </div>
                     )}
 
+                    {/* Day-off badge */}
+                    {dayOff && !isOnLeave && (
+                      <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-slate-200 text-slate-500 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-slate-300">
+                        Day off
+                      </div>
+                    )}
+
                     {/* Fully-locked overlay badge */}
                     {!isOnLeave && fullyLocked && (
                       <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-green-100 text-green-700 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-green-200">
@@ -631,6 +659,7 @@ export default function Timesheet() {
 
                     <p className={`text-xs ${
                       isOnLeave ? "text-sky-400"
+                      : dayOff   ? "text-slate-400"
                       : isToday && !fullyLocked ? "text-slate-300"
                       : fullyLocked ? "text-green-500"
                       : "text-slate-400"
@@ -638,6 +667,7 @@ export default function Timesheet() {
 
                     <p className={`text-xl font-bold mt-0.5 ${
                       isOnLeave ? "text-sky-700"
+                      : dayOff   ? "text-slate-400"
                       : isToday && !fullyLocked ? "text-white"
                       : fullyLocked ? "text-green-800"
                       : "text-slate-900"
@@ -650,6 +680,10 @@ export default function Timesheet() {
                           <span className="truncate">{leaveInfo!.type.replace(/_/g, " ")}</span>
                         </div>
                         <p className="text-[9px] text-sky-400 mt-1.5">No timesheet entry allowed</p>
+                      </div>
+                    ) : dayOff ? (
+                      <div className="mt-3">
+                        <p className="text-[10px] text-slate-400">Day off</p>
                       </div>
                     ) : (
                       <>
@@ -734,12 +768,22 @@ export default function Timesheet() {
                 </div>
               )}
 
+              {/* Day-off banner for daily view */}
+              {!getLeaveForDay(dailyDate) && isDayOff(dailyDate) && (
+                <div className="flex items-center gap-3 px-5 py-3 bg-slate-100 border-b border-slate-200">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-600">Day Off</p>
+                    <p className="text-xs text-slate-400">This is a configured day off — timesheet entries are blocked.</p>
+                  </div>
+                </div>
+              )}
+
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-slate-900">Work Entries</p>
                   <p className="text-xs text-slate-400">{getTotalHours(dailyDate)}h logged</p>
                 </div>
-                {!isFutureDay(dailyDate) && !getLeaveForDay(dailyDate) && (
+                {!isFutureDay(dailyDate) && !getLeaveForDay(dailyDate) && !isDayOff(dailyDate) && (
                   /* Show Edit button; if day is fully locked show a read-only indicator instead */
                   isDayFullyLocked(dailyDate) ? (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 font-medium">
@@ -758,6 +802,8 @@ export default function Timesheet() {
                 <div className="px-5 py-10 text-center">
                   {getLeaveForDay(dailyDate)
                     ? <><Palmtree size={28} className="mx-auto text-sky-300 mb-2" /><p className="text-sky-500 text-sm font-medium">You&apos;re on leave today</p><p className="text-sky-400 text-xs mt-1">Enjoy your time off!</p></>
+                    : isDayOff(dailyDate)
+                    ? <><p className="text-slate-500 font-medium">Day Off</p><p className="text-slate-400 text-xs mt-1">No timesheet entry allowed on days off.</p></>
                     : isFutureDay(dailyDate)
                     ? <p className="text-slate-400 text-sm">This day is locked.</p>
                     : <><p className="text-slate-500 font-medium">No entries yet</p><p className="text-slate-400 text-xs mt-1">Click Edit to log your work.</p></>}

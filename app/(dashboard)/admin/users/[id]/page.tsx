@@ -25,6 +25,21 @@ type UserDetail = {
   leavePolicyId?: number | null;
   leavePolicy?: { id: number; name: string; monthlyQuota: number } | null;
   manager?: { name: string };
+  gender?: string | null;
+  daysOff?: string[] | null;
+};
+
+const GENDER_OPTIONS = [
+  { value: "",       label: "— Not specified —" },
+  { value: "MALE",   label: "Male"              },
+  { value: "FEMALE", label: "Female"            },
+  { value: "OTHER",  label: "Other"             },
+];
+
+const ALL_WEEKDAYS = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
+const WEEKDAY_SHORT: Record<string, string> = {
+  MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed", THURSDAY: "Thu",
+  FRIDAY: "Fri", SATURDAY: "Sat", SUNDAY: "Sun",
 };
 
 const SAP_MODULES = [
@@ -84,7 +99,7 @@ export default function UserDetailPage() {
 
   /* edit profile modal */
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "" });
+  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "", gender: "", daysOff: ["SATURDAY", "SUNDAY"] as string[] });
   const [savingEdit, setSavingEdit]       = useState(false);
   const [editErr, setEditErr]             = useState("");
 
@@ -159,9 +174,11 @@ export default function UserDetailPage() {
           designation:   editForm.designation.trim() || null,
           module:        editForm.module || null,
           leavePolicyId: editForm.leavePolicyId ? parseInt(editForm.leavePolicyId) : null,
+          gender:        editForm.gender || null,
+          daysOff:       editForm.daysOff,
         }),
       });
-      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy } : u);
+      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy, gender: updated.gender, daysOff: updated.daysOff } : u);
       setShowEditModal(false);
     } catch (e: any) {
       setEditErr(e.message ?? "Failed to update profile.");
@@ -289,7 +306,7 @@ export default function UserDetailPage() {
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4">
               <button
                 onClick={() => {
-                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "" });
+                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "", gender: user.gender ?? "", daysOff: user.daysOff ?? ["SATURDAY", "SUNDAY"] });
                   setEditErr("");
                   setShowEditModal(true);
                 }}
@@ -500,6 +517,51 @@ export default function UserDetailPage() {
                       ...policies.map((p) => ({ value: String(p.id), label: p.name })),
                     ]}
                   />
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Gender <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={editForm.gender}
+                    onChange={(val) => setEditForm((f) => ({ ...f, gender: val }))}
+                    placeholder="— Not specified —"
+                    options={GENDER_OPTIONS}
+                  />
+                </div>
+
+                {/* Days Off */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Days Off
+                    <span className="ml-1 font-normal text-slate-400">({editForm.daysOff.length} selected)</span>
+                  </label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {ALL_WEEKDAYS.map((day) => {
+                      const active = editForm.daysOff.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() =>
+                            setEditForm((f) => ({
+                              ...f,
+                              daysOff: active
+                                ? f.daysOff.filter((d) => d !== day)
+                                : [...f.daysOff, day],
+                            }))
+                          }
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                            active
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                          }`}
+                        >
+                          {WEEKDAY_SHORT[day]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {editErr && (
