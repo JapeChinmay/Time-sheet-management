@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, CheckCircle2, Circle, Folder, Users,
@@ -283,7 +283,16 @@ function StatusPicker({
 
 /* ═══════════════════════════════════════════════════════════════ */
 export default function TasksPage() {
+  return (
+    <Suspense>
+      <TasksPageInner />
+    </Suspense>
+  );
+}
+
+function TasksPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [tasks, setTasks]       = useState<Task[]>([]);
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState<Filter>("ALL");
@@ -321,8 +330,28 @@ export default function TasksPage() {
   };
 
   useEffect(() => {
-    setCallerRole(getCallerRole());
+    const role = getCallerRole();
+    setCallerRole(role);
     loadTasks();
+
+    const shouldCreate = searchParams.get("createTask") === "1";
+    const preProjectId = searchParams.get("projectId") ?? "";
+    if (shouldCreate && (role === "ADMIN" || role === "SUPERADMIN") && preProjectId) {
+      const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
+      if (isAdmin) {
+        apiFetch("/projects?limit=200&sort=name,ASC").then((pRes) => {
+          setProjects(Array.isArray(pRes) ? pRes : pRes.data ?? []);
+        }).catch(() => {});
+        apiFetch("/users?limit=200&sort=name,ASC").then((uRes) => {
+          setUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
+        }).catch(() => {});
+        setCreateForm({ projectId: preProjectId, name: "", module: "", description: "", billable: true });
+        setSelectedAssignee(null);
+        setUserSearch("");
+        setCreateError("");
+        setShowCreate(true);
+      }
+    }
   }, []);
 
   /* status changed via picker */
@@ -720,55 +749,59 @@ export default function TasksPage() {
                       </span>
                     </div>
 
-                    {/* Forward history */}
-                    {(task.forwardLogs?.length ?? 0) > 0 && (
-                      <div className="mt-2 pl-1 border-l-2 border-indigo-100 space-y-1">
-                        {task.forwardLogs!.map((log) => (
-                          <div key={log.id} className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                            <Forward size={10} className="text-indigo-400 flex-shrink-0" />
-                            <span className="font-medium text-slate-500">{log.fromUser?.name ?? "—"}</span>
-                            <span>→</span>
-                            <span className="font-medium text-slate-500">{log.toUser?.name ?? "—"}</span>
-                            {log.toModule && (
-                              <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-semibold text-[10px]">
-                                {MODULE_LABEL[log.toModule] ?? log.toModule}
-                              </span>
-                            )}
-                            <span className="ml-auto text-[10px]">
-                              {new Date(log.forwardedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Status history */}
-                    {(task.statusLogs?.length ?? 0) > 0 && (
-                      <div className="mt-2 pl-1 border-l-2 border-slate-100 space-y-1">
-                        {[...task.statusLogs!].sort((a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime()).map((log) => {
-                          const toMeta = STATUS_META[log.toStatus as TaskStatus];
-                          return (
-                            <div key={log.id} className="flex items-start gap-1.5 text-[11px] text-slate-400">
-                              <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${toMeta?.dot ?? "bg-slate-300"}`} />
-                              <div className="flex-1 min-w-0">
-                                <span className="font-medium text-slate-500">
-                                  {toMeta?.label ?? log.toStatus}
+                    {/* Unified status + forward history */}
+                    {(task.statusLogs?.length ?? 0) > 0 && (() => {
+                      const sortedStatus = [...task.statusLogs!].sort(
+                        (a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime()
+                      );
+                      const sortedFwd = [...(task.forwardLogs ?? [])].sort(
+                        (a, b) => new Date(a.forwardedAt).getTime() - new Date(b.forwardedAt).getTime()
+                      );
+                      let fwdIdx = 0;
+                      return (
+                        <div className="mt-2 pl-1 border-l-2 border-slate-100 space-y-1.5">
+                          {sortedStatus.map((log) => {
+                            const toMeta = STATUS_META[log.toStatus as TaskStatus];
+                            const isForwardEntry = log.description?.startsWith("Forwarded to user");
+                            const fwdLog = isForwardEntry ? sortedFwd[fwdIdx++] ?? null : null;
+                            return (
+                              <div key={log.id} className="flex items-start gap-1.5 text-[11px] text-slate-400">
+                                <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${toMeta?.dot ?? "bg-slate-300"}`} />
+                                <div className="flex-1 min-w-0 space-y-0.5">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span className="font-medium text-slate-500">
+                                      {toMeta?.label ?? log.toStatus}
+                                    </span>
+                                    {log.changedBy && (
+                                      <span className="text-slate-400">by {log.changedBy.name}</span>
+                                    )}
+                                    {!isForwardEntry && log.description && (
+                                      <span className="text-slate-400">— {log.description}</span>
+                                    )}
+                                  </div>
+                                  {fwdLog && (
+                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 bg-indigo-50/60 rounded px-1.5 py-0.5">
+                                      <Forward size={9} className="text-indigo-400 flex-shrink-0" />
+                                      <span className="font-medium text-slate-500">{fwdLog.fromUser?.name ?? "—"}</span>
+                                      <span>→</span>
+                                      <span className="font-medium text-slate-500">{fwdLog.toUser?.name ?? "—"}</span>
+                                      {fwdLog.toModule && (
+                                        <span className="px-1 py-0.5 rounded bg-violet-100 text-violet-600 font-semibold">
+                                          {MODULE_LABEL[fwdLog.toModule] ?? fwdLog.toModule}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="flex-shrink-0 text-[10px]">
+                                  {new Date(log.changedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
                                 </span>
-                                {log.description && (
-                                  <span className="ml-1 text-slate-400">— {log.description}</span>
-                                )}
-                                {log.changedBy && (
-                                  <span className="ml-1 text-slate-400">by {log.changedBy.name}</span>
-                                )}
                               </div>
-                              <span className="flex-shrink-0 text-[10px]">
-                                {new Date(log.changedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Status picker (admin) or static badge (others) */}

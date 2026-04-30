@@ -331,7 +331,7 @@ export default function ProjectDetailPage() {
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tasks</p>
               </div>
               {isAdmin && (
-                <button onClick={async () => { await ensureUsers(); setShowAddTaskModal(true); }}
+                <button onClick={() => router.push(`/employee/tasks?createTask=1&projectId=${project.id}`)}
                   className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                   <Plus size={12} /> Add Task
                 </button>
@@ -387,10 +387,12 @@ export default function ProjectDetailPage() {
                       </div>
                       {isAdmin && (
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <button onClick={() => { ensureUsers(); setTaskAssignModal(t); }}
-                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                            Assign
-                          </button>
+                          {!(t.assignees?.length) && (
+                            <button onClick={() => { ensureUsers(); setTaskAssignModal(t); }}
+                              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                              Assign
+                            </button>
+                          )}
                           <button onClick={async () => {
                             await apiFetch(`/tasks/${t.id}`, { method: "DELETE" });
                             await loadProject();
