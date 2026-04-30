@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import SmartLoader from "@/components/ui/SmartLoader";
@@ -22,6 +22,14 @@ import {
 } from "recharts";
 
 export default function AdminTimesheets() {
+  return (
+    <Suspense>
+      <AdminTimesheetsContent />
+    </Suspense>
+  );
+}
+
+function AdminTimesheetsContent() {
   const [timesheets, setTimesheets] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
