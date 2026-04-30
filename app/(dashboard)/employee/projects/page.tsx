@@ -62,17 +62,40 @@ const AVATAR_COLORS = [
 ] as const;
 
 const PT_LABELS: Record<string, string> = {
-  FIXED: "Fixed Price", TIME_AND_MATERIAL: "T&M",
-  RETAINER: "Retainer", INTERNAL: "Internal",
+  IMPLEMENTATION_GREENFIELD:  "Implementation (Greenfield)",
+  MIGRATION_BROWNFIELD:       "Migration / System Conversion (Brownfield)",
+  ROLLOUT:                    "Rollout",
+  SUPPORT_MAINTENANCE:        "Support and Maintenance (AMS)",
+  UPGRADE_ENHANCEMENT:        "Upgrade / Enhancement",
+  LANDSCAPE_TRANSFORMATION:   "Landscape Transformation (Carve-outs)",
+  PROOF_OF_CONCEPT:           "Proof of Concept (PoC) / Prototyping",
+  INTEGRATION_INTERFACE:      "Integration / Interface Projects",
+  CUSTOM_DEVELOPMENT:         "Custom Development (Side-by-Side Extensibility)",
+  DATA_ARCHIVING_CLEANSING:   "Data Archiving & Data Cleansing",
+  SECURITY_AUTHORIZATION_GRC: "Security and Authorization (GRC) Projects",
+  CLOUD_HOSTING_MIGRATION:    "Cloud Hosting Migration (Lift and Shift)",
 };
 
 const SHIFT_TYPES   = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
-const PROJECT_TYPES = ["FIXED", "TIME_AND_MATERIAL", "RETAINER", "INTERNAL"] as const;
+const PROJECT_TYPES = [
+  "IMPLEMENTATION_GREENFIELD",
+  "MIGRATION_BROWNFIELD",
+  "ROLLOUT",
+  "SUPPORT_MAINTENANCE",
+  "UPGRADE_ENHANCEMENT",
+  "LANDSCAPE_TRANSFORMATION",
+  "PROOF_OF_CONCEPT",
+  "INTEGRATION_INTERFACE",
+  "CUSTOM_DEVELOPMENT",
+  "DATA_ARCHIVING_CLEANSING",
+  "SECURITY_AUTHORIZATION_GRC",
+  "CLOUD_HOSTING_MIGRATION",
+] as const;
 
 const EMPTY_FORM = {
   name: "", description: "", status: "CREATED" as "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED",
   startDate: "", endDate: "", sourceCompany: "", clientName: "",
-  projectType: "", shiftType: "", shiftStartTime: "", shiftEndTime: "",
+  projectType: "", shiftType: "MORNING", shiftStartTime: "09:00", shiftEndTime: "18:00",
   breakTime: "", location: "",
 };
 
@@ -380,13 +403,11 @@ export default function ProjectsPage() {
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Status">
-                      <Combobox value={form.status} onChange={setField("status")}
-                        options={[
-                          { value: "CREATED",   label: "Created"   },
-                          { value: "ACTIVE",    label: "Active"    },
-                          { value: "INACTIVE",  label: "Inactive"  },
-                          { value: "COMPLETED", label: "Completed" },
-                        ]} />
+                      <div className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 cursor-not-allowed">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0" />
+                        <span className="text-sm text-slate-500 font-medium">Created</span>
+                        <span className="ml-auto text-[10px] text-slate-400 italic">default</span>
+                      </div>
                     </Field>
                     <Field label="Project Type">
                       <Combobox value={form.projectType} onChange={setField("projectType")} placeholder="— Select —"
