@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   format, startOfWeek, addDays, subDays,
-  isSameDay, getDay, isAfter,
+  isSameDay, isAfter, eachDayOfInterval,
   startOfMonth, isSameMonth, addMonths, subMonths,
 } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock, Lock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CheckCircle2, ListTodo, Trash2, Clock, Lock, Palmtree } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 
 type Project = { id: number; name: string };
 type Task    = { id: number; name: string; projectId: number };
 type EntryStatus = "PENDING" | "APPROVED" | "REJECTED";
+type LeaveRange  = { startDate: string; endDate: string; type: string };
 type Entry   = {
   id?: number;
   date: Date;
@@ -223,8 +224,9 @@ function WeekPicker({
 
 export default function Timesheet() {
   const [view, setView] = useState<"weekly" | "daily">("weekly");
-  const [projects, setProjects]   = useState<Project[]>([]);
-  const [entries, setEntries]     = useState<Entry[]>([]);
+  const [projects, setProjects]         = useState<Project[]>([]);
+  const [entries, setEntries]           = useState<Entry[]>([]);
+  const [approvedLeaves, setApprovedLeaves] = useState<LeaveRange[]>([]);
   const [dailyDate, setDailyDate] = useState<Date>(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   });
@@ -257,14 +259,46 @@ export default function Timesheet() {
     setWeekStart((ws) => addDays(ws, 7));
   };
 
-  useEffect(() => { loadProjects(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadProjects(); loadLeaves(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadEntriesForWeek(weekStart); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Set of "yyyy-MM-dd" strings that are blocked due to an approved leave. */
+  const blockedDates = useMemo<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const leave of approvedLeaves) {
+      const days = eachDayOfInterval({
+        start: new Date(leave.startDate + "T00:00:00"),
+        end:   new Date(leave.endDate   + "T00:00:00"),
+      });
+      days.forEach((d) => set.add(format(d, "yyyy-MM-dd")));
+    }
+    return set;
+  }, [approvedLeaves]);
+
+  /** Returns the leave info for a given day if it is blocked, or undefined otherwise. */
+  const getLeaveForDay = (date: Date): LeaveRange | undefined => {
+    const key = format(date, "yyyy-MM-dd");
+    if (!blockedDates.has(key)) return undefined;
+    return approvedLeaves.find(
+      (l) => key >= l.startDate && key <= l.endDate,
+    );
+  };
 
   const loadProjects = async () => {
     try {
       const res = await apiFetch("/projects");
       setProjects(Array.isArray(res) ? res : res.data ?? []);
     } catch (e) { console.error(e); }
+  };
+
+  const loadLeaves = async () => {
+    try {
+      const res: any[] = await apiFetch("/leaves/mine");
+      const approved = (Array.isArray(res) ? res : []).filter(
+        (l) => l.status === "APPROVED",
+      ) as LeaveRange[];
+      setApprovedLeaves(approved);
+    } catch (e) { console.error("Failed to load leaves:", e); }
   };
 
   const fetchTasksForProject = async (projectId: number): Promise<Task[]> => {
@@ -334,6 +368,7 @@ export default function Timesheet() {
 
   const openModal = (date: Date) => {
     if (isFutureDay(date)) return;
+    if (getLeaveForDay(date)) return;   // blocked — on approved leave
     setSelectedDate(date);
     setRemovedIds([]);
     setSaveError("");
@@ -561,8 +596,10 @@ export default function Timesheet() {
                 const isFuture    = isFutureDay(day);
                 const isToday     = isSameDay(day, today);
                 const fullyLocked = isDayFullyLocked(day);
+                const leaveInfo   = getLeaveForDay(day);
+                const isOnLeave   = !!leaveInfo;
                 /* still clickable when partially locked (can view + add new entries) */
-                const clickable   = !isFuture;
+                const clickable   = !isFuture && !isOnLeave;
 
                 return (
                   <motion.div
@@ -570,44 +607,75 @@ export default function Timesheet() {
                     whileHover={clickable ? { y: -3 } : {}}
                     onClick={() => clickable && openModal(day)}
                     className={`border rounded-xl p-3 min-h-[160px] transition select-none relative ${
-                      isFuture    ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
+                      isOnLeave   ? "bg-sky-50 border-sky-200 cursor-not-allowed"
+                      : isFuture  ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-50"
                       : fullyLocked ? "bg-green-50 border-green-200 cursor-pointer"
                       : isToday   ? "bg-slate-900 border-slate-800 cursor-pointer text-white"
                       : dayEntries.length ? "bg-white border-slate-200 cursor-pointer shadow-sm"
                       : "bg-white border-slate-200 cursor-pointer hover:shadow-sm"
                     }`}
                   >
+                    {/* On-leave badge */}
+                    {isOnLeave && (
+                      <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-sky-100 text-sky-700 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-sky-200">
+                        <Palmtree size={8} /> Leave
+                      </div>
+                    )}
+
                     {/* Fully-locked overlay badge */}
-                    {fullyLocked && (
+                    {!isOnLeave && fullyLocked && (
                       <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-green-100 text-green-700 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-green-200">
                         <Lock size={8} /> Approved
                       </div>
                     )}
 
-                    <p className={`text-xs ${isToday && !fullyLocked ? "text-slate-300" : fullyLocked ? "text-green-500" : "text-slate-400"}`}>{format(day, "EEE")}</p>
-                    <p className={`text-xl font-bold mt-0.5 ${isToday && !fullyLocked ? "text-white" : fullyLocked ? "text-green-800" : "text-slate-900"}`}>{format(day, "d")}</p>
+                    <p className={`text-xs ${
+                      isOnLeave ? "text-sky-400"
+                      : isToday && !fullyLocked ? "text-slate-300"
+                      : fullyLocked ? "text-green-500"
+                      : "text-slate-400"
+                    }`}>{format(day, "EEE")}</p>
 
-                    <div className="mt-3 space-y-1">
-                      {dayEntries.map((e, i) => (
-                        <div key={i} className={`text-[10px] px-2 py-1 rounded-md border font-medium truncate flex items-center gap-1 ${
-                          e.status === "APPROVED" ? "bg-green-50 border-green-200 text-green-700"
-                          : e.status === "REJECTED" ? "bg-red-50 border-red-200 text-red-600"
-                          : isToday ? "bg-white/10 border-white/20 text-white"
-                          : getColor(i)
-                        }`}>
-                          {e.status === "APPROVED" && <Lock size={8} className="flex-shrink-0" />}
-                          <span className="truncate">{e.projectName}{e.taskName ? ` · ${e.taskName}` : ""} · {e.hours}h</span>
+                    <p className={`text-xl font-bold mt-0.5 ${
+                      isOnLeave ? "text-sky-700"
+                      : isToday && !fullyLocked ? "text-white"
+                      : fullyLocked ? "text-green-800"
+                      : "text-slate-900"
+                    }`}>{format(day, "d")}</p>
+
+                    {isOnLeave ? (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-sky-600 bg-sky-100 border border-sky-200 px-2 py-1 rounded-md">
+                          <Palmtree size={9} />
+                          <span className="truncate">{leaveInfo!.type.replace(/_/g, " ")}</span>
                         </div>
-                      ))}
-                    </div>
+                        <p className="text-[9px] text-sky-400 mt-1.5">No timesheet entry allowed</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-3 space-y-1">
+                          {dayEntries.map((e, i) => (
+                            <div key={i} className={`text-[10px] px-2 py-1 rounded-md border font-medium truncate flex items-center gap-1 ${
+                              e.status === "APPROVED" ? "bg-green-50 border-green-200 text-green-700"
+                              : e.status === "REJECTED" ? "bg-red-50 border-red-200 text-red-600"
+                              : isToday ? "bg-white/10 border-white/20 text-white"
+                              : getColor(i)
+                            }`}>
+                              {e.status === "APPROVED" && <Lock size={8} className="flex-shrink-0" />}
+                              <span className="truncate">{e.projectName}{e.taskName ? ` · ${e.taskName}` : ""} · {e.hours}h</span>
+                            </div>
+                          ))}
+                        </div>
 
-                    {total > 0 && (
-                      <p className={`text-xs mt-2 font-semibold ${
-                        fullyLocked ? "text-green-700" : isToday ? "text-slate-300" : "text-slate-600"
-                      }`}>{total}h</p>
+                        {total > 0 && (
+                          <p className={`text-xs mt-2 font-semibold ${
+                            fullyLocked ? "text-green-700" : isToday ? "text-slate-300" : "text-slate-600"
+                          }`}>{total}h</p>
+                        )}
+                        {!isFuture && dayEntries.length === 0 && <p className="text-[10px] mt-3 text-red-400">Missing log</p>}
+                        {isFuture && <p className={`text-[10px] mt-3 ${isToday ? "text-slate-400" : "text-slate-300"}`}>Locked</p>}
+                      </>
                     )}
-                    {!isFuture && dayEntries.length === 0 && <p className="text-[10px] mt-3 text-red-400">Missing log</p>}
-                    {isFuture && <p className={`text-[10px] mt-3 ${isToday ? "text-slate-400" : "text-slate-300"}`}>Locked</p>}
                   </motion.div>
                 );
               })}
@@ -653,12 +721,25 @@ export default function Timesheet() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              {/* On-leave banner for daily view */}
+              {getLeaveForDay(dailyDate) && (
+                <div className="flex items-center gap-3 px-5 py-3 bg-sky-50 border-b border-sky-200">
+                  <Palmtree size={16} className="text-sky-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-sky-700">On Approved Leave</p>
+                    <p className="text-xs text-sky-500">
+                      {getLeaveForDay(dailyDate)!.type.replace(/_/g, " ")} leave — timesheet entries are blocked for this day.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-slate-900">Work Entries</p>
                   <p className="text-xs text-slate-400">{getTotalHours(dailyDate)}h logged</p>
                 </div>
-                {!isFutureDay(dailyDate) && (
+                {!isFutureDay(dailyDate) && !getLeaveForDay(dailyDate) && (
                   /* Show Edit button; if day is fully locked show a read-only indicator instead */
                   isDayFullyLocked(dailyDate) ? (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 font-medium">
@@ -675,7 +756,9 @@ export default function Timesheet() {
 
               {getEntriesForDay(dailyDate).length === 0 ? (
                 <div className="px-5 py-10 text-center">
-                  {isFutureDay(dailyDate)
+                  {getLeaveForDay(dailyDate)
+                    ? <><Palmtree size={28} className="mx-auto text-sky-300 mb-2" /><p className="text-sky-500 text-sm font-medium">You&apos;re on leave today</p><p className="text-sky-400 text-xs mt-1">Enjoy your time off!</p></>
+                    : isFutureDay(dailyDate)
                     ? <p className="text-slate-400 text-sm">This day is locked.</p>
                     : <><p className="text-slate-500 font-medium">No entries yet</p><p className="text-slate-400 text-xs mt-1">Click Edit to log your work.</p></>}
                 </div>
