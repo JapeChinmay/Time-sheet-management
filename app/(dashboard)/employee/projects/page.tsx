@@ -251,6 +251,9 @@ export default function ProjectsPage() {
   if (loading) return <SmartLoader name={getUser().name} />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
+  const callerRole        = getUser().role ?? "";
+  const canManageProjects = !["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole);
+
   const createdCount   = projects.filter(p => p.status === "CREATED").length;
   const activeCount    = projects.filter(p => p.status === "ACTIVE").length;
   const inactiveCount  = projects.filter(p => p.status === "INACTIVE").length;
@@ -271,12 +274,14 @@ export default function ProjectsPage() {
             {completedCount > 0 && <span className="text-purple-600 font-medium"> · {completedCount} completed</span>}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition"
-        >
-          <Plus size={15} /> New Project
-        </button>
+        {canManageProjects && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition"
+          >
+            <Plus size={15} /> New Project
+          </button>
+        )}
       </div>
 
       {/* ── Search + status filter ── */}

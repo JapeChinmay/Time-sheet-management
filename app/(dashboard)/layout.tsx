@@ -81,16 +81,22 @@ function initials(name: string) {
 
 const ROLE_COLOR: Record<string, string> = {
   SUPERADMIN: "bg-violet-600",
-  ADMIN: "bg-blue-600",
-  INTERNAL: "bg-emerald-600",
-  EXTERNAL: "bg-amber-500",
+  ADMIN:      "bg-blue-600",
+  MANAGER:    "bg-teal-600",
+  HR:         "bg-pink-500",
+  INTERNAL:   "bg-emerald-600",
+  EXTERNAL:   "bg-amber-500",
+  INTERN:     "bg-orange-500",
 };
 
 const ROLE_BADGE: Record<string, string> = {
   SUPERADMIN: "bg-violet-100 text-violet-700",
-  ADMIN: "bg-blue-100 text-blue-700",
-  INTERNAL: "bg-emerald-100 text-emerald-700",
-  EXTERNAL: "bg-amber-100 text-amber-700",
+  ADMIN:      "bg-blue-100 text-blue-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
+  INTERNAL:   "bg-emerald-100 text-emerald-700",
+  EXTERNAL:   "bg-amber-100 text-amber-700",
+  INTERN:     "bg-orange-100 text-orange-700",
 };
 
 const PAGE_TITLES: Record<string, string> = {

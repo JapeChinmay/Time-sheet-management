@@ -75,8 +75,11 @@ const ACTION_META: Record<AuditAction, { icon: React.ReactNode; bg: string; text
 const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-rose-100 text-rose-700",
   ADMIN:      "bg-indigo-100 text-indigo-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
   INTERNAL:   "bg-slate-100 text-slate-600",
   EXTERNAL:   "bg-orange-100 text-orange-700",
+  INTERN:     "bg-amber-100 text-amber-700",
 };
 
 function getUser() {

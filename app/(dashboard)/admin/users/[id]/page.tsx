@@ -70,9 +70,12 @@ const norm = (r: any): any[] => Array.isArray(r) ? r : r?.data ?? r?.items ?? []
 
 const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-slate-800 text-white",
-  ADMIN: "bg-slate-200 text-slate-700",
-  INTERNAL: "bg-indigo-100 text-indigo-700",
-  EXTERNAL: "bg-violet-100 text-violet-700",
+  ADMIN:      "bg-slate-200 text-slate-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
+  INTERNAL:   "bg-indigo-100 text-indigo-700",
+  EXTERNAL:   "bg-violet-100 text-violet-700",
+  INTERN:     "bg-orange-100 text-orange-700",
 };
 
 const STATUS_STYLES: Record<string, string> = {

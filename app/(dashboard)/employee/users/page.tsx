@@ -31,8 +31,8 @@ const SAP_MODULES = [
   { value: "SAP_PS",   label: "SAP PS"   },
 ];
 
-const ROLES_ALL       = ["SUPERADMIN", "ADMIN", "INTERNAL", "EXTERNAL"];
-const ROLES_FOR_ADMIN = ["INTERNAL", "EXTERNAL"];
+const ROLES_ALL       = ["SUPERADMIN", "ADMIN", "MANAGER", "HR", "INTERNAL", "EXTERNAL", "INTERN"];
+const ROLES_FOR_ADMIN = ["MANAGER", "HR", "INTERNAL", "EXTERNAL", "INTERN"];
 const ACTIVITY_LEVELS = ["Active", "Idle", "Inactive", "No Activity"] as const;
 type ActivityLevel = typeof ACTIVITY_LEVELS[number];
 
@@ -54,8 +54,11 @@ const ACTIVITY_BADGE: Record<ActivityLevel, string> = {
 const ROLE_PILL: Record<string, string> = {
   SUPERADMIN: "bg-slate-800 text-white",
   ADMIN:      "bg-slate-200 text-slate-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
   INTERNAL:   "bg-indigo-100 text-indigo-700",
   EXTERNAL:   "bg-violet-100 text-violet-700",
+  INTERN:     "bg-orange-100 text-orange-700",
 };
 
 const ALL_WEEKDAYS = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
