@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, CheckCircle2, Circle, Folder, Users,
   Calendar, Search, X, ChevronRight, Plus, Loader2,
-  Clock, PauseCircle, AlertTriangle, ChevronDown, Forward,
+  Clock, PauseCircle, AlertTriangle, ChevronDown, Forward, Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
@@ -31,20 +31,31 @@ type ForwardLog = {
   fromUser?: { id: number; name: string } | null;
   toUser?: { id: number; name: string } | null;
 };
+type StatusLog = {
+  id: number;
+  changedAt: string;
+  fromStatus: string | null;
+  toStatus: string;
+  description: string | null;
+  changedBy?: { id: number; name: string } | null;
+};
 type Task = {
   id: number;
   name: string;
+  description?: string | null;
   status: TaskStatus;
   module?: string | null;
   projectId: number;
   createdAt: string;
   project?: { id: number; name: string };
   assignees?: Assignee[];
+  assigner?: { id: number; name: string } | null;
   forwardedFromId?: number | null;
   forwardedToId?: number | null;
   forwardedFrom?: { id: number; name: string } | null;
   forwardedTo?: { id: number; name: string } | null;
   forwardLogs?: ForwardLog[];
+  statusLogs?: StatusLog[];
 };
 type Project = { id: number; name: string };
 type User    = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
@@ -113,35 +124,51 @@ function StatusPicker({
 }: {
   taskId: number;
   current: TaskStatus;
-  onChanged: (id: number, next: TaskStatus) => void;
+  onChanged: (id: number, next: TaskStatus, description: string) => void;
   onForward: () => void;
   onAssign: () => void;
   forwardedTo?: { id: number; name: string } | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [open, setOpen]                   = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null);
+  const [description, setDescription]    = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setPendingStatus(null);
+        setDescription("");
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const choose = async (next: TaskStatus) => {
-    setSaving(true);
+  const selectStatus = (next: TaskStatus) => {
     setOpen(false);
+    setPendingStatus(next);
+    setDescription("");
+  };
+
+  const confirm = async () => {
+    if (!pendingStatus) return;
+    setSaving(true);
     try {
       await apiFetch(`/tasks/${taskId}`, {
         method: "PATCH",
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status: pendingStatus, description: description.trim() || null }),
       });
-      onChanged(taskId, next);
+      onChanged(taskId, pendingStatus, description.trim());
+      setPendingStatus(null);
+      setDescription("");
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
+
+  const cancel = () => { setPendingStatus(null); setDescription(""); };
 
   const meta = STATUS_META[current];
   const nextOptions = dropdownStatuses(current);
@@ -150,7 +177,7 @@ function StatusPicker({
   return (
     <div ref={ref} className="relative flex-shrink-0">
       <button
-        onClick={() => setOpen((p) => !p)}
+        onClick={() => { if (!pendingStatus) setOpen((p) => !p); }}
         disabled={saving}
         title="Change status"
         className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border cursor-pointer hover:opacity-80 transition ${
@@ -168,7 +195,8 @@ function StatusPicker({
       </button>
 
       <AnimatePresence>
-        {open && nextOptions.length > 0 && (
+        {/* Step 1 — status list */}
+        {open && !pendingStatus && nextOptions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.97 }}
             animate={{ opacity: 1, y: 0,  scale: 1     }}
@@ -183,10 +211,7 @@ function StatusPicker({
               return (
                 <button
                   key={s}
-                  onClick={() => {
-                    setOpen(false);
-                    isAssign ? onAssign() : choose(s);
-                  }}
+                  onClick={() => { isAssign ? (setOpen(false), onAssign()) : selectStatus(s); }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-slate-50 transition text-left"
                 >
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${m.dot}`} />
@@ -203,6 +228,51 @@ function StatusPicker({
               <Forward size={14} className="flex-shrink-0" />
               Forward to…
             </button>
+          </motion.div>
+        )}
+
+        {/* Step 2 — reason card */}
+        {pendingStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0,  scale: 1     }}
+            exit={{ opacity: 0,  y: 4, scale: 0.97 }}
+            transition={{ duration: 0.12 }}
+            className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-64 p-4 space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${STATUS_META[pendingStatus].badge}`}>
+                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${STATUS_META[pendingStatus].dot}`} />
+                {STATUS_META[pendingStatus].label}
+              </span>
+              <span className="text-[10px] text-slate-400">selected</span>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Reason <span className="font-normal text-slate-400">(optional)</span>
+              </label>
+              <textarea
+                autoFocus
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Why is the status changing?"
+                className="w-full border border-slate-200 px-2.5 py-2 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-slate-900/20 resize-none bg-white"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={confirm}
+                disabled={saving}
+                className="flex-1 bg-slate-900 text-white text-xs py-1.5 rounded-lg font-medium hover:bg-slate-700 transition disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {saving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                {saving ? "Saving…" : "Confirm"}
+              </button>
+              <button onClick={cancel} className="flex-1 border border-slate-200 text-xs py-1.5 rounded-lg hover:bg-slate-50 transition">
+                Cancel
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -223,7 +293,7 @@ export default function TasksPage() {
   const [showCreate, setShowCreate]   = useState(false);
   const [projects, setProjects]       = useState<Project[]>([]);
   const [users, setUsers]             = useState<User[]>([]);
-  const [createForm, setCreateForm]   = useState({ projectId: "", name: "", module: "" });
+  const [createForm, setCreateForm]   = useState({ projectId: "", name: "", module: "", description: "" });
   const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
   const [userSearch, setUserSearch]   = useState("");
   const [creating, setCreating]       = useState(false);
@@ -243,7 +313,7 @@ export default function TasksPage() {
 
   const loadTasks = async () => {
     try {
-      const res = await apiFetch("/tasks?join=project&join=assignees&join=forwardedFrom&join=forwardedTo&join=forwardLogs&join=forwardLogs.fromUser&join=forwardLogs.toUser&limit=500&sort=createdAt,DESC");
+      const res = await apiFetch("/tasks?join=project&join=assignees&join=assigner&join=forwardedFrom&join=forwardedTo&join=forwardLogs&join=forwardLogs.fromUser&join=forwardLogs.toUser&join=statusLogs&join=statusLogs.changedBy&limit=500&sort=createdAt,DESC");
       setTasks(Array.isArray(res) ? res : res.data ?? []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -255,13 +325,29 @@ export default function TasksPage() {
   }, []);
 
   /* status changed via picker */
-  const handleStatusChanged = (id: number, next: TaskStatus) => {
-    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: next } : t));
+  const handleStatusChanged = (id: number, next: TaskStatus, description: string) => {
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== id) return t;
+      const newLog: StatusLog = {
+        id: Date.now(),
+        changedAt: new Date().toISOString(),
+        fromStatus: t.status,
+        toStatus: next,
+        description: description || null,
+        changedBy: null,
+      };
+      return {
+        ...t,
+        status: next,
+        description: description || t.description,
+        statusLogs: [...(t.statusLogs ?? []), newLog],
+      };
+    }));
   };
 
   /* ── Create task helpers ── */
   const openCreateModal = async () => {
-    setCreateForm({ projectId: "", name: "", module: "" });
+    setCreateForm({ projectId: "", name: "", module: "", description: "" });
     setSelectedAssignee(null);
     setUserSearch("");
     setCreateError("");
@@ -286,7 +372,8 @@ export default function TasksPage() {
         name: createForm.name.trim(),
         projectId: Number(createForm.projectId),
       };
-      if (createForm.module) body.module = createForm.module;
+      if (createForm.module)                   body.module = createForm.module;
+      if (createForm.description.trim())       body.description = createForm.description.trim();
       const task: Task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
 
       if (selectedAssignee !== null) {
@@ -553,6 +640,9 @@ export default function TasksPage() {
                     <p className={`text-sm font-medium text-slate-900 ${done ? "line-through text-slate-400" : ""}`}>
                       {task.name}
                     </p>
+                    {task.description && (
+                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{task.description}</p>
+                    )}
 
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       {task.project && (
@@ -584,6 +674,13 @@ export default function TasksPage() {
                         </span>
                       )}
 
+                      {task.assigner && (
+                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                          <Users size={11} />
+                          by {task.assigner.name}
+                        </span>
+                      )}
+
                       <span className="flex items-center gap-1 text-xs text-slate-400">
                         <Calendar size={11} />
                         {fmtDate(parseUTC(task.createdAt))}
@@ -609,6 +706,34 @@ export default function TasksPage() {
                             </span>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Status history */}
+                    {(task.statusLogs?.length ?? 0) > 0 && (
+                      <div className="mt-2 pl-1 border-l-2 border-slate-100 space-y-1">
+                        {task.statusLogs!.map((log) => {
+                          const toMeta = STATUS_META[log.toStatus as TaskStatus];
+                          return (
+                            <div key={log.id} className="flex items-start gap-1.5 text-[11px] text-slate-400">
+                              <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${toMeta?.dot ?? "bg-slate-300"}`} />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-slate-500">
+                                  {toMeta?.label ?? log.toStatus}
+                                </span>
+                                {log.description && (
+                                  <span className="ml-1 text-slate-400">— {log.description}</span>
+                                )}
+                                {log.changedBy && (
+                                  <span className="ml-1 text-slate-400">by {log.changedBy.name}</span>
+                                )}
+                              </div>
+                              <span className="flex-shrink-0 text-[10px]">
+                                {new Date(log.changedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -699,6 +824,20 @@ export default function TasksPage() {
                     onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
                     onKeyDown={(e) => e.key === "Enter" && submitCreate()}
                     className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Description <span className="font-normal normal-case text-slate-400">(optional)</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="What does this task involve?"
+                    value={createForm.description}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                    className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 resize-none"
                   />
                 </div>
 
