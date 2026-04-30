@@ -1,18 +1,17 @@
 import type { NextConfig } from "next";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:3001/:path*",
-
-        // destination: "https://nexus-project-suite.onrender.com/:path*",
+        destination: `${API_URL}/:path*`,
       },
     ];
   },
 };
-
-
 
 export default nextConfig;
