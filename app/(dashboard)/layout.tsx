@@ -980,6 +980,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+  /* MANAGER role always shows the Manager sidebar section, regardless of isPM */
+  const showManagerSection = user?.role === "MANAGER" || isPM;
 
   useEffect(() => {
     const payload = decodeJwt();
@@ -1013,14 +1015,15 @@ export default function DashboardLayout({
   };
 
   useEffect(() => {
-    if (!userId) return;
+    /* MANAGER role always sees the Manager section — skip the API call */
+    if (!userId || user?.role === "MANAGER") return;
     apiFetch(`/projects?filter=projectManagerId||$eq||${userId}&limit=1`)
       .then((res) => {
         const data = Array.isArray(res) ? res : res.data ?? [];
         setIsPM(data.length > 0);
       })
       .catch(() => { });
-  }, [userId]);
+  }, [userId, user?.role]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -1073,7 +1076,7 @@ export default function DashboardLayout({
           <SidebarItem icon={<ListTodo size={16} />}        label="Tasks"      href="/employee/tasks"      active={pathname.startsWith("/employee/tasks")}       onClose={() => setOpen(false)} />
           <SidebarItem icon={<Palmtree size={16} />}        label="Leaves"     href="/employee/leaves"     active={pathname.startsWith("/employee/leaves")}      onClose={() => setOpen(false)} />
 
-          {isPM && (
+          {showManagerSection && (
             <>
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Manager</p>

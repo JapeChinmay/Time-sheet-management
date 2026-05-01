@@ -706,7 +706,13 @@ export default function Timesheet() {
                             fullyLocked ? "text-green-700" : isToday ? "text-slate-300" : "text-slate-600"
                           }`}>{total}h</p>
                         )}
-                        {!isFuture && dayEntries.length === 0 && <p className="text-[10px] mt-3 text-red-400">Missing log</p>}
+                       {!isFuture && dayEntries.length === 0 && (
+  <div className="mt-3 flex items-center justify-center">
+    <span className="text-[10px] px-2 py-[2px] rounded-full bg-red-500/10 text-red-500 border border-red-500/20 font-medium tracking-wide">
+      Missing Log
+    </span>
+  </div>
+)}
                         {isFuture && <p className={`text-[10px] mt-3 ${isToday ? "text-slate-400" : "text-slate-300"}`}>Locked</p>}
                       </>
                     )}

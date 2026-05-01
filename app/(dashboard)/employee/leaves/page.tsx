@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, X, CalendarDays, Clock, CheckCircle2, XCircle,
-  AlertCircle, Trash2, ChevronDown,
+  AlertCircle, Trash2, ChevronDown, Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SmartLoader from "@/components/ui/SmartLoader";
@@ -15,6 +15,14 @@ type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
   | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+
+type LeaveApproval = {
+  id: number;
+  approverId: number;
+  approver: { id: number; name: string };
+  status: LeaveStatus;
+  reviewNote: string | null;
+};
 
 type Quota = {
   hasPolicy: boolean;
@@ -34,6 +42,7 @@ type Leave = {
   status: LeaveStatus;
   reviewedBy?: { name: string } | null;
   reviewNote?: string | null;
+  approvals?: LeaveApproval[];
   createdAt: string;
 };
 
@@ -65,6 +74,37 @@ const STATUS_STYLES: Record<LeaveStatus, { pill: string; icon: React.ReactNode; 
 };
 
 const EMPTY_FORM = { type: "CASUAL" as LeaveType, startDate: "", endDate: "", reason: "" };
+
+/** Shows per-PM approval dots so the employee can track who has approved. */
+function ApprovalProgress({ approvals }: { approvals?: LeaveApproval[] }) {
+  if (!approvals || approvals.length === 0) return null;
+  const done    = approvals.filter((a) => a.status !== "PENDING").length;
+  const total   = approvals.length;
+  const allDone = done === total;
+  return (
+    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+      <Users size={11} className="text-slate-400 shrink-0" />
+      <span className="text-[11px] text-slate-500">
+        {allDone
+          ? `All ${total} manager${total !== 1 ? "s" : ""} reviewed`
+          : `${done}/${total} manager${total !== 1 ? "s" : ""} reviewed`}
+      </span>
+      <div className="flex items-center gap-1">
+        {approvals.map((a) => (
+          <span
+            key={a.id}
+            title={`${a.approver?.name ?? "PM"}: ${a.status}`}
+            className={`w-2 h-2 rounded-full ${
+              a.status === "APPROVED" ? "bg-green-500"
+              : a.status === "REJECTED" ? "bg-red-500"
+              : "bg-amber-400"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function countDays(start: string, end: string) {
   if (!start || !end) return 0;
@@ -299,6 +339,11 @@ export default function LeavesPage() {
                     {l.startDate !== l.endDate && <> → {fmtDate(l.endDate)}</>}
                   </p>
                   <p className="text-sm text-slate-700 line-clamp-2">{l.reason}</p>
+
+                  {/* Approval progress (only visible while PENDING) */}
+                  {l.status === "PENDING" && (
+                    <ApprovalProgress approvals={l.approvals} />
+                  )}
 
                   {l.reviewedBy && (
                     <p className="text-xs text-slate-400 mt-1">
