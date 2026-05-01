@@ -76,7 +76,7 @@ const GENDER_OPTIONS = [
 
 const EMPTY_CREATE = {
   name: "", email: "", password: "", role: "INTERNAL", designation: "", module: "", leavePolicyId: "",
-  gender: "",
+  gender: "", hrId: "",
   daysOff: ["SATURDAY", "SUNDAY"] as string[],
 };
 
@@ -121,6 +121,9 @@ export default function UsersPage() {
   /* leave policies (for create-user selector) */
   const [policies, setPolicies] = useState<{ id: number; name: string }[]>([]);
 
+  /* HR users (for create-user selector) */
+  const [hrUsers, setHrUsers] = useState<{ id: number; name: string }[]>([]);
+
   /* create-user modal */
   const [showCreate, setShowCreate]   = useState(false);
   const [createForm, setCreateForm]   = useState(EMPTY_CREATE);
@@ -139,6 +142,9 @@ export default function UsersPage() {
   useEffect(() => {
     apiFetch("/leave-policies")
       .then((d) => setPolicies(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    apiFetch("/users?filter=role||$eq||HR&limit=100&sort=name,ASC")
+      .then((d) => setHrUsers(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => {});
   }, []);
 
@@ -264,6 +270,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
       if (createForm.module) body.module = createForm.module;
       if (createForm.leavePolicyId) body.leavePolicyId = parseInt(createForm.leavePolicyId);
       if (createForm.gender) body.gender = createForm.gender;
+      if (createForm.hrId) body.hrId = parseInt(createForm.hrId);
       body.daysOff = createForm.daysOff;
       await apiFetch("/users", { method: "POST", body: JSON.stringify(body) });
       setShowCreate(false);
@@ -598,6 +605,21 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                     options={[
                       { value: "", label: "No policy" },
                       ...policies.map((p) => ({ value: String(p.id), label: p.name })),
+                    ]}
+                  />
+                </div>
+
+                {/* HR */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">HR <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={createForm.hrId}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, hrId: val }))}
+                    placeholder="— No HR assigned —"
+                    searchable
+                    options={[
+                      { value: "", label: "No HR assigned" },
+                      ...hrUsers.map((u) => ({ value: String(u.id), label: u.name })),
                     ]}
                   />
                 </div>
