@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, XCircle, Clock, CalendarDays,
-  MessageSquare, X, Check, Users,
+  MessageSquare, X, Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
@@ -18,7 +18,7 @@ type LeaveType =
 type LeaveApproval = {
   id: number;
   approverId: number;
-  approver: { id: number; name: string };
+  approver: { id: number; name: string; role?: string };
   status: LeaveStatus;
   reviewNote: string | null;
   createdAt: string;
@@ -74,28 +74,55 @@ function decodeToken(): { name: string; sub: number } {
   }
 }
 
+function approvalBadge(a: LeaveApproval) {
+  return (
+    <span
+      key={a.id}
+      title={a.reviewNote ? `"${a.reviewNote}"` : a.status}
+      className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+        a.status === "APPROVED"
+          ? "bg-green-50 text-green-700 border-green-200"
+          : a.status === "REJECTED"
+          ? "bg-red-50 text-red-600 border-red-200"
+          : "bg-amber-50 text-amber-700 border-amber-200"
+      }`}
+    >
+      {a.status === "APPROVED" ? <CheckCircle2 size={9} /> : a.status === "REJECTED" ? <XCircle size={9} /> : <Clock size={9} />}
+      {a.approver?.name ?? `#${a.approverId}`}
+    </span>
+  );
+}
+
 /* ── Approval chain badge strip ── */
 function ApprovalChain({ approvals }: { approvals?: LeaveApproval[] }) {
   if (!approvals || approvals.length === 0) return null;
+
+  const isHR = (a: LeaveApproval) => a.approver?.role === "HR";
+  const hrList  = approvals.filter(isHR);
+  const mgmtList = approvals.filter((a) => !isHR(a));
+
   return (
-    <div className="flex items-center gap-1.5 flex-wrap mt-2">
-      <Users size={11} className="text-slate-400 shrink-0" />
-      {approvals.map((a) => (
-        <span
-          key={a.id}
-          title={`${a.approver?.name}: ${a.status}${a.reviewNote ? ` — "${a.reviewNote}"` : ""}`}
-          className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-            a.status === "APPROVED"
-              ? "bg-green-50 text-green-700 border-green-200"
-              : a.status === "REJECTED"
-              ? "bg-red-50 text-red-600 border-red-200"
-              : "bg-amber-50 text-amber-700 border-amber-200"
-          }`}
-        >
-          {a.status === "APPROVED" ? <CheckCircle2 size={9} /> : a.status === "REJECTED" ? <XCircle size={9} /> : <Clock size={9} />}
-          {a.approver?.name ?? `PM #${a.approverId}`}
-        </span>
-      ))}
+    <div className="mt-2.5 space-y-1.5">
+      {mgmtList.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-16 shrink-0">
+            Manager
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {mgmtList.map(approvalBadge)}
+          </div>
+        </div>
+      )}
+      {hrList.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-pink-400 uppercase tracking-wide w-16 shrink-0">
+            HR
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {hrList.map(approvalBadge)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -343,30 +370,43 @@ export default function LeaveApprovalPage() {
                   <p className="text-sm text-slate-700">{reviewing.reason}</p>
                 </div>
 
-                {/* Other approvers' status (if multi-PM) */}
-                {reviewing.approvals && reviewing.approvals.length > 1 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
-                    <p className="text-xs font-semibold text-blue-700 mb-1.5">Approval chain</p>
-                    <div className="space-y-1">
-                      {reviewing.approvals.map((a) => (
-                        <div key={a.id} className="flex items-center gap-2">
-                          {a.status === "APPROVED"  ? <CheckCircle2 size={12} className="text-green-500 shrink-0" />
-                           : a.status === "REJECTED" ? <XCircle size={12} className="text-red-500 shrink-0" />
-                           : <Clock size={12} className="text-amber-500 shrink-0" />}
-                          <span className={`text-xs ${a.approverId === me.sub ? "font-semibold text-slate-800" : "text-slate-600"}`}>
-                            {a.approver?.name ?? `PM #${a.approverId}`}
-                            {a.approverId === me.sub && " (you)"}
-                          </span>
-                          <span className={`ml-auto text-[10px] font-medium ${
-                            a.status === "APPROVED" ? "text-green-600" : a.status === "REJECTED" ? "text-red-500" : "text-amber-600"
-                          }`}>
-                            {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
-                          </span>
+                {/* Other approvers' status (if multi-approver) */}
+                {reviewing.approvals && reviewing.approvals.length > 0 && (() => {
+                  const isHR = (a: LeaveApproval) => a.approver?.role === "HR";
+                  const groups = [
+                    { label: "Manager", items: reviewing.approvals!.filter((a) => !isHR(a)), labelCls: "text-slate-500" },
+                    { label: "HR",      items: reviewing.approvals!.filter(isHR),            labelCls: "text-pink-500"  },
+                  ].filter((g) => g.items.length > 0);
+
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-2.5">
+                      <p className="text-xs font-semibold text-blue-700">Approval chain</p>
+                      {groups.map((g) => (
+                        <div key={g.label}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1 ${g.labelCls}`}>{g.label}</p>
+                          <div className="space-y-1">
+                            {g.items.map((a) => (
+                              <div key={a.id} className="flex items-center gap-2">
+                                {a.status === "APPROVED"  ? <CheckCircle2 size={12} className="text-green-500 shrink-0" />
+                                 : a.status === "REJECTED" ? <XCircle size={12} className="text-red-500 shrink-0" />
+                                 : <Clock size={12} className="text-amber-500 shrink-0" />}
+                                <span className={`text-xs ${a.approverId === me.sub ? "font-semibold text-slate-800" : "text-slate-600"}`}>
+                                  {a.approver?.name ?? `#${a.approverId}`}
+                                  {a.approverId === me.sub && " (you)"}
+                                </span>
+                                <span className={`ml-auto text-[10px] font-medium ${
+                                  a.status === "APPROVED" ? "text-green-600" : a.status === "REJECTED" ? "text-red-500" : "text-amber-600"
+                                }`}>
+                                  {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Note */}
                 <div>

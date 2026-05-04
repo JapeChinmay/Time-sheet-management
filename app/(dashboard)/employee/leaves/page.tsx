@@ -19,7 +19,7 @@ type LeaveType =
 type LeaveApproval = {
   id: number;
   approverId: number;
-  approver: { id: number; name: string };
+  approver: { id: number; name: string; role?: string };
   status: LeaveStatus;
   reviewNote: string | null;
 };
@@ -75,33 +75,55 @@ const STATUS_STYLES: Record<LeaveStatus, { pill: string; icon: React.ReactNode; 
 
 const EMPTY_FORM = { type: "CASUAL" as LeaveType, startDate: "", endDate: "", reason: "" };
 
-/** Shows per-PM approval dots so the employee can track who has approved. */
 function ApprovalProgress({ approvals }: { approvals?: LeaveApproval[] }) {
   if (!approvals || approvals.length === 0) return null;
-  const done    = approvals.filter((a) => a.status !== "PENDING").length;
-  const total   = approvals.length;
-  const allDone = done === total;
+
+  const isHR = (a: LeaveApproval) =>
+    a.approver?.role === "HR" || a.approver?.role === "hr";
+
+  const hrApprovals  = approvals.filter(isHR);
+  const mgmtApprovals = approvals.filter((a) => !isHR(a));
+
+  const statusChip = (a: LeaveApproval) => (
+    <span
+      key={a.id}
+      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
+        a.status === "APPROVED" ? "bg-green-100 text-green-700"
+        : a.status === "REJECTED" ? "bg-red-100 text-red-600"
+        : "bg-amber-100 text-amber-600"
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+        a.status === "APPROVED" ? "bg-green-500"
+        : a.status === "REJECTED" ? "bg-red-500"
+        : "bg-amber-400"
+      }`} />
+      {a.approver?.name ?? "Unknown"} · {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
+    </span>
+  );
+
   return (
-    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-      <Users size={11} className="text-slate-400 shrink-0" />
-      <span className="text-[11px] text-slate-500">
-        {allDone
-          ? `All ${total} manager${total !== 1 ? "s" : ""} reviewed`
-          : `${done}/${total} manager${total !== 1 ? "s" : ""} reviewed`}
-      </span>
-      <div className="flex items-center gap-1">
-        {approvals.map((a) => (
-          <span
-            key={a.id}
-            title={`${a.approver?.name ?? "PM"}: ${a.status}`}
-            className={`w-2 h-2 rounded-full ${
-              a.status === "APPROVED" ? "bg-green-500"
-              : a.status === "REJECTED" ? "bg-red-500"
-              : "bg-amber-400"
-            }`}
-          />
-        ))}
-      </div>
+    <div className="mt-2 space-y-1.5">
+      {mgmtApprovals.length > 0 && (
+        <div className="flex items-start gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-14 pt-0.5 shrink-0">
+            Manager
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {mgmtApprovals.map(statusChip)}
+          </div>
+        </div>
+      )}
+      {hrApprovals.length > 0 && (
+        <div className="flex items-start gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-pink-400 uppercase tracking-wide w-14 pt-0.5 shrink-0">
+            HR
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {hrApprovals.map(statusChip)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
