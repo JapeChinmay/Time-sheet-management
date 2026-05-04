@@ -7,7 +7,7 @@ import {
   AlertCircle, Trash2, ChevronDown, Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { LeavesSkeleton } from "@/components/ui/skeletons";
 import DatePicker from "@/components/ui/DatePicker";
 
 /* ── types ── */
@@ -203,7 +203,7 @@ export default function LeavesPage() {
     .filter((l) => l.status === "APPROVED")
     .reduce((s, l) => s + countDays(l.startDate, l.endDate), 0);
 
-  if (loading) return <SmartLoader name={user.name} />;
+  if (loading) return <LeavesSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
   return (

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { format, startOfWeek, addDays, getDay, isAfter } from "date-fns";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { AdminDashboardSkeleton } from "@/components/ui/skeletons";
 import { parseUTC } from "@/lib/date";
 
 /* ─── types ─── */
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
     catch { return { name: "Admin" }; }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <AdminDashboardSkeleton />;
 
   /* ── derived stats ── */
   const activeUsers = users.filter((u) => u.status === "ACTIVE");

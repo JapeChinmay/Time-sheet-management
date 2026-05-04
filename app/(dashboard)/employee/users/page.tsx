@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 import { parseUTC } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -286,7 +286,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
     }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <TablePageSkeleton />;
   if (error) return <p className="text-red-500">{error}</p>;
 
   /* ── derived filters ── */

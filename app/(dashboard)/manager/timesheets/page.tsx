@@ -11,7 +11,7 @@ import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, parseISO }
 import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 
 /* ─── types ─── */
 type Project = { id: number; name: string; status: string };
@@ -160,7 +160,7 @@ export default function PMTimesheetApprovalPage() {
     return acc;
   }, {});
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <TablePageSkeleton />;
 
   /* ── not a PM ── */
   if (notPM) {

@@ -8,7 +8,7 @@ import {
   Search, Users, Briefcase, Clock3,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { ProjectsGridSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 import TimePicker from "@/components/ui/TimePicker";
@@ -248,7 +248,7 @@ export default function ProjectsPage() {
     catch { return { name: "User" }; }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <ProjectsGridSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
   const callerRole        = getUser().role ?? "";

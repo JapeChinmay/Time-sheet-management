@@ -9,7 +9,7 @@ import {
   Clock, PauseCircle, AlertTriangle, ChevronDown, Forward, Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import { parseUTC, fmtDate } from "@/lib/date";
 
@@ -505,7 +505,7 @@ function TasksPageInner() {
     }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <TablePageSkeleton />;
 
   /* ── derived counts ── */
   const countByStatus = (s: TaskStatus) => tasks.filter((t) => t.status === s).length;

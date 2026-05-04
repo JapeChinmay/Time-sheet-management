@@ -9,7 +9,7 @@ import {
 import { addDays, format } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 import { parseUTC, fmtDateTime, timeAgo } from "@/lib/date";
@@ -150,7 +150,7 @@ export default function AuditLogsPage() {
 
   const activeCnt = activeFilterCount(filters);
 
-  if (loading && logs.length === 0) return <SmartLoader name={getUser().name} />;
+  if (loading && logs.length === 0) return <TablePageSkeleton />;
 
   return (
     <div className="space-y-6">

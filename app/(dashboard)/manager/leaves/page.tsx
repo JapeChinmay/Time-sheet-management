@@ -7,7 +7,7 @@ import {
   MessageSquare, X, Check, Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 
 /* ── types ── */
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -160,7 +160,7 @@ export default function LeaveApprovalPage() {
   const approved = leaves.filter((l) => l.status === "APPROVED").length;
   const rejected = leaves.filter((l) => l.status === "REJECTED").length;
 
-  if (loading) return <SmartLoader name={me.name} />;
+  if (loading) return <TablePageSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
   return (

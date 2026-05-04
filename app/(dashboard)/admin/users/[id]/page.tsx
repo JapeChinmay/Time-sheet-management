@@ -14,7 +14,7 @@ import {
   parseISO, getDay,
 } from "date-fns";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { UserDetailSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import { parseUTC } from "@/lib/date";
 
@@ -197,7 +197,7 @@ export default function UserDetailPage() {
     }
   };
 
-  if (loading) return <SmartLoader name="Loading…" />;
+  if (loading) return <UserDetailSkeleton />;
   if (error || !user) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-500">

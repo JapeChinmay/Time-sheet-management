@@ -6,7 +6,7 @@ import {
   Plus, X, Pencil, Trash2, ShieldCheck, ChevronDown, AlertCircle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { LeavePoliciesSkeleton } from "@/components/ui/skeletons";
 
 /* ── types ── */
 type LeaveType =
@@ -142,7 +142,7 @@ export default function LeavePoliciesPage() {
     }
   };
 
-  if (loading) return <SmartLoader name="Admin" />;
+  if (loading) return <LeavePoliciesSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
   return (
