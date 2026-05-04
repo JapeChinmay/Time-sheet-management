@@ -4,11 +4,18 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, X, CalendarDays, Clock, CheckCircle2, XCircle,
-  AlertCircle, Trash2, ChevronDown, Users,
+  AlertCircle, Trash2, ChevronDown, Users, Info, Banknote,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { LeavesSkeleton } from "@/components/ui/skeletons";
 import DatePicker from "@/components/ui/DatePicker";
+
+/* ── helpers ── */
+function addCalendarDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
 
 /* ── types ── */
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -183,13 +190,50 @@ export default function LeavesPage() {
     if (new Date(form.endDate) < new Date(form.startDate)) { setApplyErr("End date must be after start date."); return; }
     if (form.reason.trim().length < 5) { setApplyErr("Reason must be at least 5 characters."); return; }
 
+    const totalDays   = countDays(form.startDate, form.endDate);
+    const remaining   = Math.max(0, quota?.remainingThisMonth ?? Infinity);
+    const hasSplit    = quota?.hasPolicy && form.type !== "UNPAID" && totalDays > remaining;
+    const paidDays    = hasSplit ? Math.floor(Math.min(totalDays, remaining)) : totalDays;
+    const unpaidDays  = hasSplit ? totalDays - paidDays : 0;
+
     setApplying(true); setApplyErr("");
     try {
-      const res = await apiFetch("/leaves", {
-        method: "POST",
-        body: JSON.stringify({ type: form.type, startDate: form.startDate, endDate: form.endDate, reason: form.reason.trim() }),
-      });
-      setLeaves((prev) => [res, ...prev]);
+      const reason = form.reason.trim();
+
+      if (!hasSplit) {
+        /* Normal submit — all days within quota OR already UNPAID type */
+        const leaveType = (quota?.hasPolicy && remaining <= 0 && form.type !== "UNPAID") ? "UNPAID" as const : form.type;
+        const res = await apiFetch("/leaves", {
+          method: "POST",
+          body: JSON.stringify({ type: leaveType, startDate: form.startDate, endDate: form.endDate, reason }),
+        });
+        setLeaves((prev) => [res, ...prev]);
+      } else if (paidDays === 0) {
+        /* All days are beyond quota — submit entirely as UNPAID */
+        const res = await apiFetch("/leaves", {
+          method: "POST",
+          body: JSON.stringify({ type: "UNPAID", startDate: form.startDate, endDate: form.endDate, reason }),
+        });
+        setLeaves((prev) => [res, ...prev]);
+      } else {
+        /* Split: paid portion + unpaid overflow submitted as two requests */
+        const paidEnd     = addCalendarDays(form.startDate, paidDays - 1);
+        const unpaidStart = addCalendarDays(form.startDate, paidDays);
+
+        const [paidRes, unpaidRes] = await Promise.all([
+          apiFetch("/leaves", {
+            method: "POST",
+            body: JSON.stringify({ type: form.type, startDate: form.startDate, endDate: paidEnd, reason }),
+          }),
+          apiFetch("/leaves", {
+            method: "POST",
+            body: JSON.stringify({ type: "UNPAID", startDate: unpaidStart, endDate: form.endDate, reason }),
+          }),
+        ]);
+        /* Newest first */
+        setLeaves((prev) => [unpaidRes, paidRes, ...prev]);
+      }
+
       setShowApply(false);
       setForm(EMPTY_FORM);
     } catch (e: any) {
@@ -265,7 +309,7 @@ export default function LeavesPage() {
 
       {/* ── Quota banner ── */}
       {quota?.hasPolicy && (
-        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-3">
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
               <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-1">{quota.policyName}</p>
@@ -286,6 +330,13 @@ export default function LeavesPage() {
                 ))}
               </div>
             )}
+          </div>
+          {/* Unpaid overflow note */}
+          <div className="flex items-start gap-1.5 pt-1 border-t border-teal-200/60">
+            <Info size={12} className="text-teal-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-teal-600">
+              You can apply for leave beyond your quota — days exceeding your remaining balance will automatically be treated as <strong>unpaid leave</strong>.
+            </p>
           </div>
         </div>
       )}
@@ -456,11 +507,70 @@ export default function LeavesPage() {
                   </div>
                 </div>
 
-                {form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && (
-                  <p className="text-xs text-indigo-600 font-medium -mt-2">
-                    {countDays(form.startDate, form.endDate)} day{countDays(form.startDate, form.endDate) !== 1 ? "s" : ""} selected
-                  </p>
-                )}
+                {/* Duration + long-leave breakdown */}
+                {form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && (() => {
+                  const total     = countDays(form.startDate, form.endDate);
+                  const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
+                  const hasSplit  = quota?.hasPolicy && form.type !== "UNPAID" && total > remaining;
+                  const paidDays  = hasSplit ? Math.floor(Math.min(total, remaining)) : total;
+                  const unpaidDays = hasSplit ? total - paidDays : 0;
+
+                  return (
+                    <div className="-mt-2 space-y-2">
+                      {/* Simple duration line */}
+                      <p className="text-xs text-indigo-600 font-medium">
+                        {total} day{total !== 1 ? "s" : ""} selected
+                      </p>
+
+                      {/* Long-leave warning card */}
+                      {hasSplit && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <AlertCircle size={13} className="text-amber-600 shrink-0" />
+                            <p className="text-xs font-semibold text-amber-800">Long leave — some days will be unpaid</p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            {paidDays > 0 && (
+                              <div className="flex items-center justify-between text-xs bg-white border border-emerald-200 rounded-lg px-3 py-1.5">
+                                <span className="font-medium text-emerald-700">
+                                  {paidDays} day{paidDays !== 1 ? "s" : ""} · {LEAVE_TYPES.find((t) => t.value === form.type)?.label}
+                                </span>
+                                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                  Paid
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between text-xs bg-white border border-amber-200 rounded-lg px-3 py-1.5">
+                              <span className="font-medium text-amber-700 flex items-center gap-1">
+                                <Banknote size={12} />
+                                {unpaidDays} day{unpaidDays !== 1 ? "s" : ""} · Unpaid Leave
+                              </span>
+                              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                Unpaid
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-amber-600 flex items-start gap-1">
+                            <Info size={11} className="shrink-0 mt-0.5" />
+                            You have <strong>{remaining.toFixed(1)} day{remaining !== 1 ? "s" : ""}</strong> remaining in your policy quota this month. Days beyond the quota will be submitted as separate unpaid leave.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* All unpaid (remaining = 0) */}
+                      {quota?.hasPolicy && form.type !== "UNPAID" && remaining <= 0 && total > 0 && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
+                          <AlertCircle size={13} className="text-amber-600 shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-700">
+                            You have <strong>no remaining quota</strong> this month. This entire leave will be treated as <strong>unpaid leave</strong>.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Reason */}
                 <div>
@@ -482,22 +592,40 @@ export default function LeavesPage() {
                 )}
               </div>
 
-              <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 shrink-0">
-                <button
-                  onClick={applyLeave}
-                  disabled={applying}
-                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {applying
-                    ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting…</>
-                    : <><Plus size={14} /> Submit Request</>
-                  }
-                </button>
-                <button onClick={() => setShowApply(false)}
-                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
-                  Cancel
-                </button>
-              </div>
+              {/* Footer — recalculate split state for button label */}
+              {(() => {
+                const total     = countDays(form.startDate, form.endDate);
+                const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
+                const hasSplit  = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && total > remaining);
+                const allUnpaid = !!(quota?.hasPolicy && form.type !== "UNPAID" && remaining <= 0 && total > 0 && form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate));
+
+                return (
+                  <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 shrink-0">
+                    <button
+                      onClick={applyLeave}
+                      disabled={applying}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2 ${
+                        hasSplit || allUnpaid
+                          ? "bg-amber-500 hover:bg-amber-600 text-white"
+                          : "bg-slate-900 hover:bg-slate-700 text-white"
+                      }`}
+                    >
+                      {applying
+                        ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting…</>
+                        : hasSplit
+                        ? <><Banknote size={14} /> Submit</>
+                        : allUnpaid
+                        ? <><Banknote size={14} /> Submit as Unpaid Leave</>
+                        : <><Plus size={14} /> Submit Request</>
+                      }
+                    </button>
+                    <button onClick={() => setShowApply(false)}
+                      className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
+                      Cancel
+                    </button>
+                  </div>
+                );
+              })()}
             </motion.div>
           </motion.div>
         )}
