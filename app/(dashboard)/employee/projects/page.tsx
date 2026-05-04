@@ -255,6 +255,7 @@ export default function ProjectsPage() {
 
   const callerRole        = getUser().role ?? "";
   const canManageProjects = !["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole);
+  const canExport         = ["ADMIN", "SUPERADMIN"].includes(callerRole);
 
   const createdCount   = projects.filter(p => p.status === "CREATED").length;
   const activeCount    = projects.filter(p => p.status === "ACTIVE").length;
@@ -277,14 +278,16 @@ export default function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={openExportPage}
-            disabled={projects.length === 0}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Export project timesheet report"
-          >
-            <Download size={14} /> Export Data
-          </button>
+          {canExport && (
+            <button
+              onClick={openExportPage}
+              disabled={projects.length === 0}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Export project timesheet report"
+            >
+              <Download size={14} /> Export Data
+            </button>
+          )}
           {canManageProjects && (
             <button
               onClick={() => setShowCreate(true)}
