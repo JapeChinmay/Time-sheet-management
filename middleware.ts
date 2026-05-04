@@ -21,6 +21,13 @@ export default auth((req) => {
   ) {
     return NextResponse.redirect(new URL("/employee", req.url));
   }
+
+  if (
+    pathname.startsWith("/hr") &&
+    role !== "HR"
+  ) {
+    return NextResponse.redirect(new URL("/employee", req.url));
+  }
 });
 
 export const config = {
@@ -28,6 +35,7 @@ export const config = {
     "/admin/:path*",
     "/employee/:path*",
     "/manager/:path*",
+    "/hr/:path*",
     "/support/:path*",
   ],
 };

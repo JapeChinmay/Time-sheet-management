@@ -70,5 +70,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   pages:   { signIn: "/login" },
   session: { strategy: "jwt" },
-  secret:  process.env.NEXTAUTH_SECRET ?? "nexus-placeholder-secret",
+  secret:  process.env.NEXTAUTH_SECRET,
 });

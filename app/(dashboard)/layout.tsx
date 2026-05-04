@@ -1099,7 +1099,6 @@ export default function DashboardLayout({
               <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"     active={isActive("/employee/users")}                 onClose={() => setOpen(false)} />
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")}  onClose={() => setOpen(false)} />
               <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}      onClose={() => setOpen(false)} />
-              <SidebarItem icon={<UserCog size={16} />}        label="HR Leave Approval" href="/hr/leaves"           active={pathname.startsWith("/hr/leaves")}           onClose={() => setOpen(false)} />
               <SidebarItem icon={<ScrollText size={16} />}     label="Leave Policies"     href="/admin/leave-policies" active={pathname.startsWith("/admin/leave-policies")} onClose={() => setOpen(false)} />
               <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")}    onClose={() => setOpen(false)} />
             </>
