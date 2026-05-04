@@ -345,61 +345,79 @@ export default function ProjectExportPage() {
     { label: "This year",     apply: () => setRange(`${new Date().getFullYear()}-01-01`, isoToday()) },
   ];
 
-  /* ── Export CSV ── */
+  /* ── Export CSV (billing only) ── */
   const exportCsv = () => {
-    if (!entries.length) return;
-    const sym = currencySymbol(billCurrency);
+    if (!billingBreakdown.length) return;
 
-    /* ── Sheet 1: Timesheet entries ── */
-    const timesheetHeaders = ["Date","User","Email","Project","Task","Description","Hours","Status"];
-    const timesheetRows    = entries.map((e) => [
-      e.date, e.user?.name ?? `User ${e.userId}`, e.user?.email ?? "",
-      e.project?.name ?? projDetail?.name ?? "", e.task?.name ?? "",
-      e.description ?? "", String(e.hours || 0), e.status ?? "PENDING",
-    ]);
-    const totalH = entries.reduce((s, e) => s + (e.hours || 0), 0);
-    timesheetRows.push(["","","","","","TOTAL", String(totalH), ""]);
+    const periodLabel = billingView === "daily" ? "Date" : billingView === "weekly" ? "Week" : "Month";
+    const generated   = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-    /* ── Sheet 2: Billing breakdown ── */
-    const billingHeaders = ["User",`Rate (${sym}/hr)`, "Period", "Hours", `Amount (${billCurrency})`];
-    const billingRows: string[][] = [];
+    const row  = (...cells: string[]) => cells.map(csvEscape).join(",");
+    const blank = () => "";
+
+    /* ── Project info block ── */
+    const lines: string[] = [
+      row("PROJECT BILLING REPORT"),
+      blank(),
+      row("Project",    projDetail?.name ?? "NULL"),
+      row("Date Range", dateFrom ? `${fmtDate(dateFrom)} to ${fmtDate(dateTo)}` : "NULL"),
+      row("View",       periodLabel),
+      row("Currency",   billCurrency),
+      row("Generated",  generated),
+      blank(),
+    ];
+
+    /* ── Column headers (shared across all users) ── */
+    lines.push(row("User", "Role", periodLabel, "Hours Logged", `Amount (${billCurrency})`));
+
+    /* ── One block of rows per user ── */
     billingBreakdown.forEach((u) => {
-      const userLabel = u.isPM ? `${u.userName} (PM)` : u.userName;
-      u.rows.forEach((r) => {
-        billingRows.push([
-          userLabel, u.rate > 0 ? String(u.rate) : "—",
-          r.label, String(r.hours),
-          r.billing != null ? r.billing.toFixed(2) : "—",
-        ]);
-      });
-      billingRows.push([
-        `${userLabel} — TOTAL`, u.rate > 0 ? String(u.rate) : "—",
-        "", String(u.totalHours),
-        u.totalBilling != null ? u.totalBilling.toFixed(2) : "—",
-      ]);
-      billingRows.push([]);
+      const userName = u.userName ?? "NULL";
+      const userRole = u.isPM ? "Project Manager" : "Team Member";
+
+      if (u.rows.length === 0) {
+        /* No entries in this period */
+        lines.push(row(userName, userRole, "NULL", "0", "NULL"));
+      } else {
+        u.rows.forEach((r) => {
+          lines.push(row(
+            userName,
+            userRole,
+            r.label,
+            String(r.hours),
+            r.billing != null ? r.billing.toFixed(2) : "NULL",
+          ));
+        });
+      }
+
+      /* Per-user subtotal */
+      lines.push(row(
+        `${userName} Subtotal`,
+        "NULL",
+        "NULL",
+        String(u.totalHours),
+        u.totalBilling != null ? u.totalBilling.toFixed(2) : "NULL",
+      ));
+      lines.push(blank());
     });
-    if (grandTotal.totalBilling != null) {
-      billingRows.push(["GRAND TOTAL","","", String(grandTotal.totalHours), grandTotal.totalBilling.toFixed(2)]);
-    }
 
-    const toCSV = (headers: string[], rows: string[][]) =>
-      [headers, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
+    /* ── Grand total ── */
+    lines.push(row(
+      "GRAND TOTAL",
+      "NULL",
+      "NULL",
+      String(grandTotal.totalHours),
+      grandTotal.totalBilling != null ? grandTotal.totalBilling.toFixed(2) : "NULL",
+    ));
 
-    const csv = [
-      "=== TIMESHEET ENTRIES ===",
-      toCSV(timesheetHeaders, timesheetRows),
-      "",
-      "=== BILLING BREAKDOWN ===",
-      toCSV(billingHeaders, billingRows),
-    ].join("\n");
-
+    /* UTF-8 BOM (﻿) ensures Excel opens with correct encoding */
+    const csv  = "﻿" + lines.join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href     = url;
     const slug = (projDetail?.name ?? "project").replace(/[^a-zA-Z0-9]+/g, "-");
-    a.download = `${slug}-${dateFrom}-to-${dateTo}.csv`;
+    a.download = `${slug}-billing-${dateFrom}-to-${dateTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -780,7 +798,9 @@ export default function ProjectExportPage() {
                                               </th>
                                               <th className="text-right px-4 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Hours</th>
                                               <th className="text-right px-4 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">
-                                                {u.rate > 0 ? `Amount (${billCurrency})` : "Rate not set"}
+                                                {u.rate > 0
+                                                  ? `Amount @ ${currencySymbol(billCurrency)}${u.rate}/hr`
+                                                  : "Rate not set"}
                                               </th>
                                             </tr>
                                           </thead>
