@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 import { parseUTC } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,8 +31,8 @@ const SAP_MODULES = [
   { value: "SAP_PS",   label: "SAP PS"   },
 ];
 
-const ROLES_ALL       = ["SUPERADMIN", "ADMIN", "INTERNAL", "EXTERNAL"];
-const ROLES_FOR_ADMIN = ["INTERNAL", "EXTERNAL"];
+const ROLES_ALL       = ["SUPERADMIN", "ADMIN", "MANAGER", "HR", "INTERNAL", "EXTERNAL", "INTERN"];
+const ROLES_FOR_ADMIN = ["MANAGER", "HR", "INTERNAL", "EXTERNAL", "INTERN"];
 const ACTIVITY_LEVELS = ["Active", "Idle", "Inactive", "No Activity"] as const;
 type ActivityLevel = typeof ACTIVITY_LEVELS[number];
 
@@ -54,12 +54,30 @@ const ACTIVITY_BADGE: Record<ActivityLevel, string> = {
 const ROLE_PILL: Record<string, string> = {
   SUPERADMIN: "bg-slate-800 text-white",
   ADMIN:      "bg-slate-200 text-slate-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
   INTERNAL:   "bg-indigo-100 text-indigo-700",
   EXTERNAL:   "bg-violet-100 text-violet-700",
+  INTERN:     "bg-orange-100 text-orange-700",
 };
+
+const ALL_WEEKDAYS = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
+const WEEKDAY_SHORT: Record<string, string> = {
+  MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed", THURSDAY: "Thu",
+  FRIDAY: "Fri", SATURDAY: "Sat", SUNDAY: "Sun",
+};
+
+const GENDER_OPTIONS = [
+  { value: "",       label: "— Not specified —" },
+  { value: "MALE",   label: "Male"              },
+  { value: "FEMALE", label: "Female"            },
+  { value: "OTHER",  label: "Other"             },
+];
 
 const EMPTY_CREATE = {
   name: "", email: "", password: "", role: "INTERNAL", designation: "", module: "", leavePolicyId: "",
+  gender: "", hrId: "",
+  daysOff: ["SATURDAY", "SUNDAY"] as string[],
 };
 
 function decodeToken() {
@@ -103,6 +121,9 @@ export default function UsersPage() {
   /* leave policies (for create-user selector) */
   const [policies, setPolicies] = useState<{ id: number; name: string }[]>([]);
 
+  /* HR users (for create-user selector) */
+  const [hrUsers, setHrUsers] = useState<{ id: number; name: string }[]>([]);
+
   /* create-user modal */
   const [showCreate, setShowCreate]   = useState(false);
   const [createForm, setCreateForm]   = useState(EMPTY_CREATE);
@@ -121,6 +142,9 @@ export default function UsersPage() {
   useEffect(() => {
     apiFetch("/leave-policies")
       .then((d) => setPolicies(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    apiFetch("/users?filter=role||$eq||HR&limit=100&sort=name,ASC")
+      .then((d) => setHrUsers(Array.isArray(d) ? d : d?.data ?? []))
       .catch(() => {});
   }, []);
 
@@ -245,6 +269,9 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
       if (createForm.designation.trim()) body.designation = createForm.designation.trim();
       if (createForm.module) body.module = createForm.module;
       if (createForm.leavePolicyId) body.leavePolicyId = parseInt(createForm.leavePolicyId);
+      if (createForm.gender) body.gender = createForm.gender;
+      if (createForm.hrId) body.hrId = parseInt(createForm.hrId);
+      body.daysOff = createForm.daysOff;
       await apiFetch("/users", { method: "POST", body: JSON.stringify(body) });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
@@ -259,7 +286,7 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
     }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <TablePageSkeleton />;
   if (error) return <p className="text-red-500">{error}</p>;
 
   /* ── derived filters ── */
@@ -512,6 +539,17 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                   />
                 </div>
 
+                {/* Gender */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Gender <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={createForm.gender}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, gender: val }))}
+                    placeholder="— Not specified —"
+                    options={GENDER_OPTIONS}
+                  />
+                </div>
+
                 {/* Password */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Password *</label>
@@ -569,6 +607,55 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
                       ...policies.map((p) => ({ value: String(p.id), label: p.name })),
                     ]}
                   />
+                </div>
+
+                {/* HR */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">HR <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={createForm.hrId}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, hrId: val }))}
+                    placeholder="— No HR assigned —"
+                    searchable
+                    options={[
+                      { value: "", label: "No HR assigned" },
+                      ...hrUsers.map((u) => ({ value: String(u.id), label: u.name })),
+                    ]}
+                  />
+                </div>
+
+                {/* Days Off */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Days Off
+                    <span className="ml-1 font-normal text-slate-400">({createForm.daysOff.length} selected)</span>
+                  </label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {ALL_WEEKDAYS.map((day) => {
+                      const active = createForm.daysOff.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() =>
+                            setCreateForm((f) => ({
+                              ...f,
+                              daysOff: active
+                                ? f.daysOff.filter((d) => d !== day)
+                                : [...f.daysOff, day],
+                            }))
+                          }
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                            active
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                          }`}
+                        >
+                          {WEEKDAY_SHORT[day]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {createErr && (

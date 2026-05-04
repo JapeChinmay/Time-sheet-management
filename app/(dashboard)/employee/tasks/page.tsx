@@ -9,7 +9,7 @@ import {
   Clock, PauseCircle, AlertTriangle, ChevronDown, Forward, Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import { parseUTC, fmtDate } from "@/lib/date";
 
@@ -64,16 +64,20 @@ type User    = { id: number; name: string; email: string; role: string; designat
 /* ─── status meta ─── */
 type StatusMeta = { label: string; badge: string; dot: string };
 const STATUS_META: Record<TaskStatus, StatusMeta> = {
-  CREATED:             { label: "Created",             badge: "bg-slate-100 text-slate-600 border-slate-200",   dot: "bg-slate-400"  },
-  ASSIGNED:            { label: "Assigned",            badge: "bg-blue-50 text-blue-700 border-blue-200",       dot: "bg-blue-500"   },
-  WORK_IN_PROGRESS:    { label: "In Progress",         badge: "bg-amber-50 text-amber-700 border-amber-200",    dot: "bg-amber-500"  },
-  ON_HOLD:             { label: "On Hold",             badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
-  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency",     badge: "bg-red-50 text-red-700 border-red-200",          dot: "bg-red-500"    },
-  COMPLETED:           { label: "Completed",           badge: "bg-green-50 text-green-700 border-green-200",    dot: "bg-green-500"  },
+  CREATED:             { label: "Created",         badge: "bg-slate-100 text-slate-600 border-slate-200",   dot: "bg-slate-400"  },
+  ASSIGNED:            { label: "Assigned",        badge: "bg-blue-50 text-blue-700 border-blue-200",       dot: "bg-blue-500"   },
+  WORK_IN_PROGRESS:    { label: "In Progress",     badge: "bg-amber-50 text-amber-700 border-amber-200",    dot: "bg-amber-500"  },
+  ON_HOLD:             { label: "On Hold",         badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency", badge: "bg-red-50 text-red-700 border-red-200",          dot: "bg-red-500"    },
+  COMPLETED:           { label: "Completed",       badge: "bg-green-50 text-green-700 border-green-200",    dot: "bg-green-500"  },
 };
 
 const ALL_STATUSES: TaskStatus[] = [
   "CREATED", "ASSIGNED", "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY", "COMPLETED",
+];
+
+const ASSIGNEE_ALLOWED_STATUSES: TaskStatus[] = [
+  "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY",
 ];
 
 function dropdownStatuses(current: TaskStatus): TaskStatus[] {
@@ -106,15 +110,15 @@ function getUser() {
 
 /* ─── status icon helper ─── */
 function StatusIcon({ status, size = 20 }: { status: TaskStatus; size?: number }) {
-  if (status === "COMPLETED")           return <CheckCircle2 size={size} className="text-green-500" />;
-  if (status === "WORK_IN_PROGRESS")    return <Clock        size={size} className="text-amber-500" />;
-  if (status === "ON_HOLD")             return <PauseCircle  size={size} className="text-orange-500" />;
+  if (status === "COMPLETED")           return <CheckCircle2  size={size} className="text-green-500" />;
+  if (status === "WORK_IN_PROGRESS")    return <Clock         size={size} className="text-amber-500" />;
+  if (status === "ON_HOLD")             return <PauseCircle   size={size} className="text-orange-500" />;
   if (status === "EXTERNAL_DEPENDENCY") return <AlertTriangle size={size} className="text-red-500" />;
-  if (status === "ASSIGNED")            return <Circle       size={size} className="text-blue-400" />;
-  return                                       <Circle       size={size} className="text-slate-300" />;
+  if (status === "ASSIGNED")            return <Circle        size={size} className="text-blue-400" />;
+  return                                       <Circle        size={size} className="text-slate-300" />;
 }
 
-/* ─── inline status picker (admin only) ─── */
+/* ─── inline status picker ─── */
 function StatusPicker({
   taskId,
   current,
@@ -122,6 +126,7 @@ function StatusPicker({
   onForward,
   onAssign,
   forwardedTo,
+  allowedStatuses,
 }: {
   taskId: number;
   current: TaskStatus;
@@ -129,6 +134,7 @@ function StatusPicker({
   onForward: () => void;
   onAssign: () => void;
   forwardedTo?: { id: number; name: string } | null;
+  allowedStatuses?: TaskStatus[];
 }) {
   const [open, setOpen]                   = useState(false);
   const [saving, setSaving]               = useState(false);
@@ -172,7 +178,9 @@ function StatusPicker({
   const cancel = () => { setPendingStatus(null); setDescription(""); };
 
   const meta = STATUS_META[current];
-  const nextOptions = dropdownStatuses(current);
+  const nextOptions = allowedStatuses
+    ? allowedStatuses.filter((s) => s !== current)
+    : dropdownStatuses(current);
   const isFwdBadge = current === "ASSIGNED" && !!forwardedTo;
 
   return (
@@ -221,14 +229,18 @@ function StatusPicker({
                 </button>
               );
             })}
-            <div className="border-t border-slate-100 mt-1" />
-            <button
-              onClick={() => { setOpen(false); onForward(); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-indigo-600 hover:bg-indigo-50 transition text-left font-medium"
-            >
-              <Forward size={14} className="flex-shrink-0" />
-              Forward to…
-            </button>
+            {!allowedStatuses && (
+              <>
+                <div className="border-t border-slate-100 mt-1" />
+                <button
+                  onClick={() => { setOpen(false); onForward(); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-indigo-600 hover:bg-indigo-50 transition text-left font-medium"
+                >
+                  <Forward size={14} className="flex-shrink-0" />
+                  Forward to…
+                </button>
+              </>
+            )}
           </motion.div>
         )}
 
@@ -493,7 +505,7 @@ function TasksPageInner() {
     }
   };
 
-  if (loading) return <SmartLoader name={getUser().name} />;
+  if (loading) return <TablePageSkeleton />;
 
   /* ── derived counts ── */
   const countByStatus = (s: TaskStatus) => tasks.filter((t) => t.status === s).length;
@@ -547,8 +559,11 @@ function TasksPageInner() {
   const ROLE_COLORS: Record<string, string> = {
     SUPERADMIN: "bg-rose-100 text-rose-700",
     ADMIN:      "bg-indigo-100 text-indigo-700",
+    MANAGER:    "bg-teal-100 text-teal-700",
+    HR:         "bg-pink-100 text-pink-700",
     INTERNAL:   "bg-slate-100 text-slate-600",
     EXTERNAL:   "bg-orange-100 text-orange-700",
+    INTERN:     "bg-amber-100 text-amber-700",
   };
 
   return (
@@ -647,7 +662,7 @@ function TasksPageInner() {
           <p className="text-sm mt-1">Try a different filter or search term.</p>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl">
           <AnimatePresence initial={false}>
             {filtered.map((task, i) => {
               const done = task.status === "COMPLETED";
@@ -659,7 +674,7 @@ function TasksPageInner() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ delay: Math.min(i * 0.02, 0.2) }}
-                  className={`flex items-start gap-4 px-5 py-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition group ${done ? "opacity-60" : ""}`}
+                  className={`relative flex items-start gap-4 px-5 py-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition group first:rounded-t-xl last:rounded-b-xl ${done ? "opacity-60" : ""}`}
                 >
                   {/* Status icon */}
                   <div className="mt-0.5 flex-shrink-0">
@@ -804,7 +819,7 @@ function TasksPageInner() {
                     })()}
                   </div>
 
-                  {/* Status picker (admin) or static badge (others) */}
+                  {/* Status picker: full for admin, restricted for assignee roles, static badge otherwise */}
                   {isAdmin ? (
                     <StatusPicker
                       taskId={task.id}
@@ -813,6 +828,15 @@ function TasksPageInner() {
                       onForward={() => openForward(task)}
                       onAssign={() => openAssign(task)}
                       forwardedTo={isForwarded ? task.forwardedTo ?? null : null}
+                    />
+                  ) : ["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole) ? (
+                    <StatusPicker
+                      taskId={task.id}
+                      current={task.status}
+                      onChanged={handleStatusChanged}
+                      onForward={() => {}}
+                      onAssign={() => {}}
+                      allowedStatuses={ASSIGNEE_ALLOWED_STATUSES}
                     />
                   ) : (
                     isForwarded ? (

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TimesheetAnalyticsSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import { motion } from "framer-motion";
 
@@ -121,7 +121,7 @@ function AdminTimesheetsContent() {
   };
 
   if (loading) {
-    return <SmartLoader name={getUser().name} />;
+    return <TimesheetAnalyticsSkeleton />;
   }
 
  

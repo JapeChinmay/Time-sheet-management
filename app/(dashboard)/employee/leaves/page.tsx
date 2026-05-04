@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, X, CalendarDays, Clock, CheckCircle2, XCircle,
-  AlertCircle, Trash2, ChevronDown,
+  AlertCircle, Trash2, ChevronDown, Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { LeavesSkeleton } from "@/components/ui/skeletons";
 import DatePicker from "@/components/ui/DatePicker";
 
 /* ── types ── */
@@ -15,6 +15,14 @@ type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
   | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+
+type LeaveApproval = {
+  id: number;
+  approverId: number;
+  approver: { id: number; name: string; role?: string };
+  status: LeaveStatus;
+  reviewNote: string | null;
+};
 
 type Quota = {
   hasPolicy: boolean;
@@ -34,6 +42,7 @@ type Leave = {
   status: LeaveStatus;
   reviewedBy?: { name: string } | null;
   reviewNote?: string | null;
+  approvals?: LeaveApproval[];
   createdAt: string;
 };
 
@@ -65,6 +74,59 @@ const STATUS_STYLES: Record<LeaveStatus, { pill: string; icon: React.ReactNode; 
 };
 
 const EMPTY_FORM = { type: "CASUAL" as LeaveType, startDate: "", endDate: "", reason: "" };
+
+function ApprovalProgress({ approvals }: { approvals?: LeaveApproval[] }) {
+  if (!approvals || approvals.length === 0) return null;
+
+  const isHR = (a: LeaveApproval) =>
+    a.approver?.role === "HR" || a.approver?.role === "hr";
+
+  const hrApprovals  = approvals.filter(isHR);
+  const mgmtApprovals = approvals.filter((a) => !isHR(a));
+
+  const statusChip = (a: LeaveApproval) => (
+    <span
+      key={a.id}
+      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
+        a.status === "APPROVED" ? "bg-green-100 text-green-700"
+        : a.status === "REJECTED" ? "bg-red-100 text-red-600"
+        : "bg-amber-100 text-amber-600"
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+        a.status === "APPROVED" ? "bg-green-500"
+        : a.status === "REJECTED" ? "bg-red-500"
+        : "bg-amber-400"
+      }`} />
+      {a.approver?.name ?? "Unknown"} · {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
+    </span>
+  );
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {mgmtApprovals.length > 0 && (
+        <div className="flex items-start gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-14 pt-0.5 shrink-0">
+            Manager
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {mgmtApprovals.map(statusChip)}
+          </div>
+        </div>
+      )}
+      {hrApprovals.length > 0 && (
+        <div className="flex items-start gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-pink-400 uppercase tracking-wide w-14 pt-0.5 shrink-0">
+            HR
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {hrApprovals.map(statusChip)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function countDays(start: string, end: string) {
   if (!start || !end) return 0;
@@ -163,7 +225,7 @@ export default function LeavesPage() {
     .filter((l) => l.status === "APPROVED")
     .reduce((s, l) => s + countDays(l.startDate, l.endDate), 0);
 
-  if (loading) return <SmartLoader name={user.name} />;
+  if (loading) return <LeavesSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
   return (
@@ -299,6 +361,11 @@ export default function LeavesPage() {
                     {l.startDate !== l.endDate && <> → {fmtDate(l.endDate)}</>}
                   </p>
                   <p className="text-sm text-slate-700 line-clamp-2">{l.reason}</p>
+
+                  {/* Approval progress (only visible while PENDING) */}
+                  {l.status === "PENDING" && (
+                    <ApprovalProgress approvals={l.approvals} />
+                  )}
 
                   {l.reviewedBy && (
                     <p className="text-xs text-slate-400 mt-1">

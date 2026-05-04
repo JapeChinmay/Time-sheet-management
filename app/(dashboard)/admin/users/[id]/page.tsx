@@ -14,7 +14,7 @@ import {
   parseISO, getDay,
 } from "date-fns";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { UserDetailSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import { parseUTC } from "@/lib/date";
 
@@ -25,6 +25,23 @@ type UserDetail = {
   leavePolicyId?: number | null;
   leavePolicy?: { id: number; name: string; monthlyQuota: number } | null;
   manager?: { name: string };
+  hrId?: number | null;
+  hr?: { id: number; name: string } | null;
+  gender?: string | null;
+  daysOff?: string[] | null;
+};
+
+const GENDER_OPTIONS = [
+  { value: "",       label: "— Not specified —" },
+  { value: "MALE",   label: "Male"              },
+  { value: "FEMALE", label: "Female"            },
+  { value: "OTHER",  label: "Other"             },
+];
+
+const ALL_WEEKDAYS = ["MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY"] as const;
+const WEEKDAY_SHORT: Record<string, string> = {
+  MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed", THURSDAY: "Thu",
+  FRIDAY: "Fri", SATURDAY: "Sat", SUNDAY: "Sun",
 };
 
 const SAP_MODULES = [
@@ -55,9 +72,12 @@ const norm = (r: any): any[] => Array.isArray(r) ? r : r?.data ?? r?.items ?? []
 
 const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-slate-800 text-white",
-  ADMIN: "bg-slate-200 text-slate-700",
-  INTERNAL: "bg-indigo-100 text-indigo-700",
-  EXTERNAL: "bg-violet-100 text-violet-700",
+  ADMIN:      "bg-slate-200 text-slate-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
+  INTERNAL:   "bg-indigo-100 text-indigo-700",
+  EXTERNAL:   "bg-violet-100 text-violet-700",
+  INTERN:     "bg-orange-100 text-orange-700",
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -84,7 +104,8 @@ export default function UserDetailPage() {
 
   /* edit profile modal */
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "" });
+  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "", gender: "", hrId: "", daysOff: ["SATURDAY", "SUNDAY"] as string[] });
+  const [hrUsers, setHrUsers]             = useState<{ id: number; name: string }[]>([]);
   const [savingEdit, setSavingEdit]       = useState(false);
   const [editErr, setEditErr]             = useState("");
 
@@ -112,12 +133,15 @@ export default function UserDetailPage() {
     apiFetch("/leave-policies")
       .then((d) => setPolicies(Array.isArray(d) ? d : []))
       .catch(() => {});
+    apiFetch("/users?filter=role||$eq||HR&limit=100&sort=name,ASC")
+      .then((d) => setHrUsers(Array.isArray(d) ? d : d?.data ?? []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!id) return;
     Promise.all([
-      apiFetch(`/users/${id}?join=manager`),
+      apiFetch(`/users/${id}?join=manager&join=hr`),
       apiFetch(`/timesheets?filter=userId||$eq||${id}&join=project&sort=date,DESC&limit=300`),
       apiFetch(`/user-logs?filter=userId||$eq||${id}&sort=timestamp,DESC&limit=20`),
     ])
@@ -159,9 +183,12 @@ export default function UserDetailPage() {
           designation:   editForm.designation.trim() || null,
           module:        editForm.module || null,
           leavePolicyId: editForm.leavePolicyId ? parseInt(editForm.leavePolicyId) : null,
+          gender:        editForm.gender || null,
+          hrId:          editForm.hrId ? parseInt(editForm.hrId) : null,
+          daysOff:       editForm.daysOff,
         }),
       });
-      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy } : u);
+      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy, gender: updated.gender, hrId: updated.hrId, hr: updated.hr, daysOff: updated.daysOff } : u);
       setShowEditModal(false);
     } catch (e: any) {
       setEditErr(e.message ?? "Failed to update profile.");
@@ -170,7 +197,7 @@ export default function UserDetailPage() {
     }
   };
 
-  if (loading) return <SmartLoader name="Loading…" />;
+  if (loading) return <UserDetailSkeleton />;
   if (error || !user) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-500">
@@ -289,7 +316,7 @@ export default function UserDetailPage() {
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4">
               <button
                 onClick={() => {
-                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "" });
+                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "", gender: user.gender ?? "", hrId: user.hrId ? String(user.hrId) : "", daysOff: user.daysOff ?? ["SATURDAY", "SUNDAY"] });
                   setEditErr("");
                   setShowEditModal(true);
                 }}
@@ -500,6 +527,66 @@ export default function UserDetailPage() {
                       ...policies.map((p) => ({ value: String(p.id), label: p.name })),
                     ]}
                   />
+                </div>
+
+                {/* HR */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">HR <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={editForm.hrId}
+                    onChange={(val) => setEditForm((f) => ({ ...f, hrId: val }))}
+                    placeholder="— No HR assigned —"
+                    searchable
+                    options={[
+                      { value: "", label: "No HR assigned" },
+                      ...hrUsers.map((u) => ({ value: String(u.id), label: u.name })),
+                    ]}
+                  />
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Gender <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <Combobox
+                    value={editForm.gender}
+                    onChange={(val) => setEditForm((f) => ({ ...f, gender: val }))}
+                    placeholder="— Not specified —"
+                    options={GENDER_OPTIONS}
+                  />
+                </div>
+
+                {/* Days Off */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                    Days Off
+                    <span className="ml-1 font-normal text-slate-400">({editForm.daysOff.length} selected)</span>
+                  </label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {ALL_WEEKDAYS.map((day) => {
+                      const active = editForm.daysOff.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() =>
+                            setEditForm((f) => ({
+                              ...f,
+                              daysOff: active
+                                ? f.daysOff.filter((d) => d !== day)
+                                : [...f.daysOff, day],
+                            }))
+                          }
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                            active
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                          }`}
+                        >
+                          {WEEKDAY_SHORT[day]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {editErr && (

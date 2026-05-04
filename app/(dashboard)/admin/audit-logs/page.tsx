@@ -9,7 +9,7 @@ import {
 import { addDays, format } from "date-fns";
 import { RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import SmartLoader from "@/components/ui/SmartLoader";
+import { TablePageSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 import { parseUTC, fmtDateTime, timeAgo } from "@/lib/date";
@@ -75,8 +75,11 @@ const ACTION_META: Record<AuditAction, { icon: React.ReactNode; bg: string; text
 const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-rose-100 text-rose-700",
   ADMIN:      "bg-indigo-100 text-indigo-700",
+  MANAGER:    "bg-teal-100 text-teal-700",
+  HR:         "bg-pink-100 text-pink-700",
   INTERNAL:   "bg-slate-100 text-slate-600",
   EXTERNAL:   "bg-orange-100 text-orange-700",
+  INTERN:     "bg-amber-100 text-amber-700",
 };
 
 function getUser() {
@@ -147,7 +150,7 @@ export default function AuditLogsPage() {
 
   const activeCnt = activeFilterCount(filters);
 
-  if (loading && logs.length === 0) return <SmartLoader name={getUser().name} />;
+  if (loading && logs.length === 0) return <TablePageSkeleton />;
 
   return (
     <div className="space-y-6">
