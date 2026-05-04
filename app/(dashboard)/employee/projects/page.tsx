@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, X, Folder, Calendar, Building2, MapPin,
-  Search, Users, Briefcase, Clock3,
+  Search, Users, Briefcase, Clock3, Download,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { ProjectsGridSkeleton } from "@/components/ui/skeletons";
@@ -243,6 +243,8 @@ export default function ProjectsPage() {
     }
   };
 
+  const openExportPage = () => router.push("/employee/projects/export");
+
   const getUser = () => {
     try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
     catch { return { name: "User" }; }
@@ -274,14 +276,24 @@ export default function ProjectsPage() {
             {completedCount > 0 && <span className="text-purple-600 font-medium"> · {completedCount} completed</span>}
           </p>
         </div>
-        {canManageProjects && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition"
+            onClick={openExportPage}
+            disabled={projects.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Export project timesheet report"
           >
-            <Plus size={15} /> New Project
+            <Download size={14} /> Export Data
           </button>
-        )}
+          {canManageProjects && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition"
+            >
+              <Plus size={15} /> New Project
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Search + status filter ── */}
