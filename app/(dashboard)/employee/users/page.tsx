@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
 import { parseUTC } from "@/lib/date";
@@ -80,10 +81,6 @@ const EMPTY_CREATE = {
   daysOff: ["SATURDAY", "SUNDAY"] as string[],
 };
 
-function decodeToken() {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-  catch { return null; }
-}
 
 const INPUT = "w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white";
 
@@ -131,8 +128,8 @@ export default function UsersPage() {
   const [creating, setCreating]       = useState(false);
   const [createErr, setCreateErr]     = useState("");
 
-  const caller      = typeof window !== "undefined" ? decodeToken() : null;
-  const callerRole  = caller?.role ?? "";
+  const { data: session } = useSession();
+  const callerRole  = session?.user?.role ?? "";
   const isAdmin     = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
   const isSuperAdmin = callerRole === "SUPERADMIN";
   const availableRoles = isSuperAdmin ? ROLES_ALL : ROLES_FOR_ADMIN;
@@ -245,14 +242,6 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
     fetchData();
   }, []);
 
-  const getUser = () => {
-    try {
-      const token = localStorage.getItem("token");
-      return JSON.parse(atob(token!.split(".")[1]));
-    } catch {
-      return { name: "User" };
-    }
-  };
 
   const createUser = async () => {
     if (!createForm.name.trim())  { setCreateErr("Name is required."); return; }

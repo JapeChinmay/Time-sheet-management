@@ -7,8 +7,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/api/:path*",
-        // destination: `${API_URL}/:path*`,
+        source: "/api/:path((?!auth/).*)",
         destination: `http://3.108.234.187:3000/:path*`,
       },
     ];

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
+import { TokenSync } from "@/components/TokenSync";
 import { motion, AnimatePresence } from "framer-motion";
 
 import {
@@ -66,15 +68,6 @@ interface SearchResults {
 }
 
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
-function decodeJwt(): JwtPayload | null {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
-    return JSON.parse(atob(token.split(".")[1])) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
@@ -968,8 +961,16 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<JwtPayload | null>(null);
-  const [userId, setUserId] = useState<number | null>(null);
+  const { data: session } = useSession();
+  const user: JwtPayload | null = session
+    ? {
+        sub:   Number(session.user.id ?? 0),
+        name:  session.user.name  ?? "",
+        email: session.user.email ?? "",
+        role:  session.user.role  ?? "",
+      } as JwtPayload
+    : null;
+  const userId = user?.sub ?? null;
   const [isPM, setIsPM] = useState(false);
   const [open, setOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -985,14 +986,6 @@ export default function DashboardLayout({
   const isHR    = user?.role === "HR";
   /* MANAGER role always shows the Manager sidebar section, regardless of isPM */
   const showManagerSection = user?.role === "MANAGER" || isPM;
-
-  useEffect(() => {
-    const payload = decodeJwt();
-    if (payload) {
-      setUser(payload);
-      setUserId(payload.sub ?? payload.id ?? null);
-    }
-  }, []);
 
   /* ── Check for newly resolved bugs on login ── */
   useEffect(() => {
@@ -1029,14 +1022,14 @@ export default function DashboardLayout({
   }, [userId, user?.role]);
 
   const handleLogout = () => {
-    localStorage.clear();
-    router.push("/login");
+    signOut({ callbackUrl: "/login" });
   };
 
   const isActive = (path: string) => pathname === path;
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
+      <TokenSync />
 
       {/* Mobile hamburger */}
       <button

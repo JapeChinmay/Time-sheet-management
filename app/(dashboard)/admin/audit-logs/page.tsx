@@ -82,11 +82,6 @@ const ROLE_COLORS: Record<string, string> = {
   INTERN:     "bg-amber-100 text-amber-700",
 };
 
-function getUser() {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-  catch { return { name: "Admin" }; }
-}
-
 function activeFilterCount(f: Filters) {
   return [f.entity, f.action, f.userId, f.dateFrom, f.dateTo].filter(Boolean).length;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bug,
@@ -42,15 +43,6 @@ interface BugReport {
 }
 
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
-function getUser(): { role: string; name: string } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const payload = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
-    return { role: payload.role, name: payload.name };
-  } catch {
-    return null;
-  }
-}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -278,8 +270,8 @@ function EmptyState({ message, sub }: { message: string; sub: string }) {
 
 /* ─── Main Page ──────────────────────────────────────────────────────── */
 export default function ReportBugPage() {
-  const [user, setUser]   = useState<{ role: string; name: string } | null>(null);
-  const isAdmin           = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
 
   /* Tab */
   const [tab, setTab] = useState<ActiveTab>("report");
@@ -312,7 +304,6 @@ export default function ReportBugPage() {
     return matchStatus && matchSearch;
   });
 
-  useEffect(() => { setUser(getUser()); }, []);
 
   const fetchReports = useCallback(async () => {
     setLoading(true);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2, XCircle, Clock, CalendarDays,
@@ -69,14 +70,6 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function decodeToken(): { name: string; sub: number } {
-  try {
-    const p = JSON.parse(atob(localStorage.getItem("token")!.split(".")[1]));
-    return { name: p.name ?? "HR", sub: p.sub ?? p.id ?? 0 };
-  } catch {
-    return { name: "HR", sub: 0 };
-  }
-}
 
 /* ── Compact approval row ── */
 function ApprovalRow({ a, meId }: { a: LeaveApproval; meId: number }) {
@@ -135,7 +128,8 @@ export default function HRLeavesPage() {
   const [saving, setSaving]         = useState(false);
   const [reviewErr, setReviewErr]   = useState("");
 
-  const me = typeof window !== "undefined" ? decodeToken() : { name: "", sub: 0 };
+  const { data: session } = useSession();
+  const me = { name: session?.user?.name ?? "", sub: Number(session?.user?.id ?? 0) };
 
   useEffect(() => {
     apiFetch("/leaves")

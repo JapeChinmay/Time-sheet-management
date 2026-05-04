@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -87,10 +88,6 @@ const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-slate-800 text-white",
 };
 
-function getCallerRole(): string {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).role ?? ""; }
-  catch { return ""; }
-}
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -100,7 +97,8 @@ export default function ProjectDetailPage() {
   const [timesheets, setTimesheets] = useState<TimesheetEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [callerRole, setCallerRole] = useState("");
+  const { data: session } = useSession();
+  const callerRole = session?.user?.role ?? "";
 
   const [allUsers, setAllUsers] = useState<UserOption[]>([]);
   const [responsibilities, setResponsibilities] = useState<Record<number, number | null>>({});
@@ -135,7 +133,6 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    setCallerRole(getCallerRole());
     loadProject()
       .catch((err) => setError(err.message ?? "Failed to load project."))
       .finally(() => setLoading(false));
