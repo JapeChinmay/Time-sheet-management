@@ -17,6 +17,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { UserDetailSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
 import { parseUTC } from "@/lib/date";
 
 /* ─── types ─── */
@@ -30,6 +31,7 @@ type UserDetail = {
   hr?: { id: number; name: string } | null;
   gender?: string | null;
   daysOff?: string[] | null;
+  birthdate?: string | null;
 };
 
 const GENDER_OPTIONS = [
@@ -106,7 +108,7 @@ export default function UserDetailPage() {
 
   /* edit profile modal */
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "", gender: "", hrId: "", daysOff: ["SATURDAY", "SUNDAY"] as string[] });
+  const [editForm, setEditForm]           = useState({ name: "", designation: "", module: "", leavePolicyId: "", gender: "", hrId: "", daysOff: ["SATURDAY", "SUNDAY"] as string[], birthdate: "" });
   const [hrUsers, setHrUsers]             = useState<{ id: number; name: string }[]>([]);
   const [savingEdit, setSavingEdit]       = useState(false);
   const [editErr, setEditErr]             = useState("");
@@ -184,9 +186,10 @@ export default function UserDetailPage() {
           gender:        editForm.gender || null,
           hrId:          editForm.hrId ? parseInt(editForm.hrId) : null,
           daysOff:       editForm.daysOff,
+          birthdate:     editForm.birthdate || null,
         }),
       });
-      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy, gender: updated.gender, hrId: updated.hrId, hr: updated.hr, daysOff: updated.daysOff } : u);
+      setUser((u) => u ? { ...u, name: updated.name, designation: updated.designation, module: updated.module, leavePolicyId: updated.leavePolicyId, leavePolicy: updated.leavePolicy, gender: updated.gender, hrId: updated.hrId, hr: updated.hr, daysOff: updated.daysOff, birthdate: updated.birthdate } : u);
       setShowEditModal(false);
     } catch (e: any) {
       setEditErr(e.message ?? "Failed to update profile.");
@@ -289,6 +292,11 @@ export default function UserDetailPage() {
           </div>
           <p className="text-sm text-slate-500 mt-0.5">{user.email}</p>
           {user.designation && <p className="text-xs text-slate-400 mt-0.5">{user.designation}</p>}
+          {user.birthdate && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              🎂 {new Date(user.birthdate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+            </p>
+          )}
           {user.manager && <p className="text-xs text-slate-400 mt-0.5">Manager: {user.manager.name}</p>}
 
           {/* SAP Module + Leave Policy */}
@@ -314,7 +322,7 @@ export default function UserDetailPage() {
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4">
               <button
                 onClick={() => {
-                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "", gender: user.gender ?? "", hrId: user.hrId ? String(user.hrId) : "", daysOff: user.daysOff ?? ["SATURDAY", "SUNDAY"] });
+                  setEditForm({ name: user.name, designation: user.designation ?? "", module: user.module ?? "", leavePolicyId: user.leavePolicyId ? String(user.leavePolicyId) : "", gender: user.gender ?? "", hrId: user.hrId ? String(user.hrId) : "", daysOff: user.daysOff ?? ["SATURDAY", "SUNDAY"], birthdate: user.birthdate ?? "" });
                   setEditErr("");
                   setShowEditModal(true);
                 }}
@@ -550,6 +558,16 @@ export default function UserDetailPage() {
                     onChange={(val) => setEditForm((f) => ({ ...f, gender: val }))}
                     placeholder="— Not specified —"
                     options={GENDER_OPTIONS}
+                  />
+                </div>
+
+                {/* Birthdate */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Date of Birth <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <DatePicker
+                    value={editForm.birthdate}
+                    onChange={(val) => setEditForm((f) => ({ ...f, birthdate: val }))}
+                    placeholder="Select date of birth"
                   />
                 </div>
 
