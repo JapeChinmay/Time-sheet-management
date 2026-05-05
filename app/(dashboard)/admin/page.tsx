@@ -143,11 +143,6 @@ export default function AdminDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const getUser = () => {
-    try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-    catch { return { name: "Admin" }; }
-  };
-
   if (loading) return <AdminDashboardSkeleton />;
 
   /* ── derived stats ── */

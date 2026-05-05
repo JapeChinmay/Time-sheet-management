@@ -1,19 +1,17 @@
+let _token: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  _token = token;
+}
+
 const BASE_URL = "/api";
 
-export async function apiFetch(
-  path: string,
-  options: RequestInit = {}
-) {
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("token")
-      : null;
-
+export async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(_token && { Authorization: `Bearer ${_token}` }),
       ...options.headers,
     },
   });
@@ -25,18 +23,10 @@ export async function apiFetch(
     data = null;
   }
 
-
-  console.log("API DEBUG:", {
-    url: path,
-    status: res.status,
-    ok: res.ok,
-    response: data,
-  });
-
   if (!res.ok) {
     throw new Error(
       data?.message ||
-      data?.error ||
+      data?.error   ||
       JSON.stringify(data) ||
       `HTTP ${res.status}`
     );
