@@ -340,8 +340,8 @@ function TasksPageInner() {
 
     const shouldCreate = searchParams.get("createTask") === "1";
     const preProjectId = searchParams.get("projectId") ?? "";
-    if (shouldCreate && (role === "ADMIN" || role === "SUPERADMIN") && preProjectId) {
-      const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
+    if (shouldCreate && (callerRole === "ADMIN" || callerRole === "SUPERADMIN") && preProjectId) {
+      const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
       if (isAdmin) {
         apiFetch("/projects?limit=200&sort=name,ASC").then((pRes) => {
           setProjects(Array.isArray(pRes) ? pRes : pRes.data ?? []);
