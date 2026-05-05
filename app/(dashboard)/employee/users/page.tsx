@@ -148,28 +148,27 @@ export default function UsersPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersRes, tsRes] = await Promise.all([
-          apiFetch("/users"),
-          apiFetch("/timesheets"),
-        ]);
+        /* ── 1. Users (required) ── */
+        const usersRes = await apiFetch("/users");
+        const userList: User[] = Array.isArray(usersRes) ? usersRes : usersRes.data || [];
 
-        const userList: User[] = Array.isArray(usersRes)
-          ? usersRes
-          : usersRes.data || [];
+        /* ── 2. Timesheets (optional — some roles may not have access) ── */
+        let tsList: Timesheet[] = [];
+        try {
+          const tsRes = await apiFetch("/timesheets");
+          tsList = Array.isArray(tsRes) ? tsRes : tsRes.data || [];
+        } catch {
+          /* Silently skip — activity / hours enrichment won't be available */
+        }
 
-
-const tsList: Timesheet[] = Array.isArray(tsRes)
-  ? tsRes
-  : tsRes.data || [];
-     
+        /* ── 3. Build user → timesheet map ── */
         const userMap: Record<number, any[]> = {};
-
         tsList.forEach((t: any) => {
           if (!userMap[t.userId]) userMap[t.userId] = [];
           userMap[t.userId].push(t);
         });
 
-    
+        /* ── 4. Resolve project names (best-effort) ── */
         const projectIds: number[] = [
           ...new Set(
             tsList
@@ -179,55 +178,36 @@ const tsList: Timesheet[] = Array.isArray(tsRes)
           ),
         ];
 
-      
-        const projectResults: Project[] = await Promise.all(
-          projectIds.map((pid: number) =>
-            apiFetch(`/projects/${pid}`).then((res: any) => ({
-              id: pid,
-              name: res?.name || `Project ${pid}`,
-            }))
-          )
-        );
+        if (projectIds.length > 0) {
+          const projectResults: Project[] = await Promise.allSettled(
+            projectIds.map((pid: number) =>
+              apiFetch(`/projects/${pid}`).then((res: any) => ({
+                id: pid,
+                name: res?.name || `Project ${pid}`,
+              }))
+            )
+          ).then((results) =>
+            results
+              .filter((r) => r.status === "fulfilled")
+              .map((r: any) => r.value)
+          );
+          setProjectsMap(
+            Object.fromEntries(projectResults.map((p) => [p.id, p.name]))
+          );
+        }
 
-      
-        const map: Record<number, string> = Object.fromEntries(
-          projectResults.map((p) => [p.id, p.name])
-        );
-
-        setProjectsMap(map);
-
-     
+        /* ── 5. Enrich user list ── */
         const enriched: User[] = userList.map((u: any) => {
           const userTs = userMap[u.id] || [];
-
           if (userTs.length === 0) {
-            return {
-              ...u,
-              lastActive: null,
-              totalHours: 0,
-              projectId: null,
-            };
+            return { ...u, lastActive: null, totalHours: 0, projectId: null };
           }
-
           const sorted = [...userTs].sort(
-            (a, b) =>
-              new Date(b.date).getTime() -
-              new Date(a.date).getTime()
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
           );
-
           const lastEntry = sorted[0];
-
-          const totalHours = userTs.reduce(
-            (sum, t) => sum + t.hours,
-            0
-          );
-
-          return {
-            ...u,
-            lastActive: lastEntry.date,
-            projectId: lastEntry.projectId,
-            totalHours,
-          };
+          const totalHours = userTs.reduce((sum, t) => sum + t.hours, 0);
+          return { ...u, lastActive: lastEntry.date, projectId: lastEntry.projectId, totalHours };
         });
 
         setUsers(enriched);
