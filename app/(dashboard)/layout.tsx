@@ -1018,8 +1018,18 @@ export default function DashboardLayout({
   };
 
   useEffect(() => {
-    /* MANAGER role always sees the Manager section — skip the API call */
-    if (!userId || user?.role === "MANAGER") return;
+    /* Skip roles that never need the isPM check:
+     *  - MANAGER → always shows Manager section regardless
+     *  - ADMIN / SUPERADMIN → have their own admin section
+     *  - HR → has their own HR section
+     */
+    if (
+      !userId ||
+      user?.role === "MANAGER" ||
+      user?.role === "ADMIN" ||
+      user?.role === "SUPERADMIN" ||
+      user?.role === "HR"
+    ) return;
     apiFetch(`/projects?filter=projectManagerId||$eq||${userId}&limit=1`)
       .then((res) => {
         const data = Array.isArray(res) ? res : res.data ?? [];
@@ -1106,7 +1116,7 @@ export default function DashboardLayout({
               <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"     active={isActive("/employee/users")}                 onClose={() => setOpen(false)} />
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")}  onClose={() => setOpen(false)} />
               <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}      onClose={() => setOpen(false)} />
-              <SidebarItem icon={<UserCog size={16} />}        label="HR Leave Approval" href="/hr/leaves"           active={pathname.startsWith("/hr/leaves")}           onClose={() => setOpen(false)} />
+              {/* <SidebarItem icon={<UserCog size={16} />}        label="HR Leave Approval" href="/hr/leaves"           active={pathname.startsWith("/hr/leaves")}           onClose={() => setOpen(false)} /> */}
               <SidebarItem icon={<ScrollText size={16} />}     label="Leave Policies"     href="/admin/leave-policies" active={pathname.startsWith("/admin/leave-policies")} onClose={() => setOpen(false)} />
               <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")}    onClose={() => setOpen(false)} />
             </>
