@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
+import { parseUTC, fmtDate as fmtDateLib, timeAgo } from "@/lib/date";
 import { TokenSync } from "@/components/TokenSync";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -117,15 +118,7 @@ function getPageTitle(pathname: string): string {
   return "WorkPulse";
 }
 
-function fmtRelative(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+function fmtRelative(iso: string) { return timeAgo(parseUTC(iso)); }
 
 const STATUS_DOT: Record<string, string> = {
   ACTIVE: "bg-emerald-400",
@@ -184,11 +177,7 @@ function ResolvedBugsModal({
   const current = bugs[idx];
   const total = bugs.length;
 
-  function fmtDate(iso: string) {
-    return new Date(iso).toLocaleDateString("en-IN", {
-      day: "2-digit", month: "short", year: "numeric",
-    });
-  }
+  function fmtDate(iso: string) { return fmtDateLib(parseUTC(iso)); }
 
   return (
     <motion.div

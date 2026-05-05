@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
-import { parseUTC } from "@/lib/date";
+import { parseUTC, fmtDateOnly } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Eye, EyeOff, UserPlus, Search, Users } from "lucide-react";
@@ -435,7 +435,7 @@ export default function UsersPage() {
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Last active: {u.lastActive ? parseUTC(u.lastActive).toLocaleDateString() : "Never"}</span>
+                  <span>Last active: {u.lastActive ? fmtDateOnly(u.lastActive) : "Never"}</span>
                   <span className="font-medium text-slate-600">{u.totalHours || 0}h total</span>
                 </div>
 

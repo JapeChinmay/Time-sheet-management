@@ -2,6 +2,10 @@
  * All timestamps from the API are stored as UTC (TIMESTAMPTZ).
  * TypeORM may serialize them without the "Z" suffix on some drivers.
  * These helpers ensure correct UTC parsing + browser-local display.
+ *
+ * Two types of date values come from the API:
+ *   - TIMESTAMPTZ  (createdAt, updatedAt, timestamp, changedAt, …) → use parseUTC() then fmtDate/fmtDateTime
+ *   - DATE strings (date, startDate, endDate, birthdate "YYYY-MM-DD") → use fmtDateOnly() — NO timezone shift
  */
 
 /**
@@ -47,6 +51,23 @@ export function fmtDateTime(d: Date): string {
  */
 export function fmtDate(d: Date): string {
   return d.toLocaleDateString(undefined, {
+    day:   '2-digit',
+    month: 'short',
+    year:  'numeric',
+  });
+}
+
+/**
+ * Format a date-only string "YYYY-MM-DD" for display.
+ * No UTC conversion — treats it as a pure calendar date (local noon).
+ *
+ * @example
+ *   fmtDateOnly("2024-01-15")  // → "15 Jan 2024"
+ */
+export function fmtDateOnly(d: string | null | undefined): string {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString(undefined, {
     day:   '2-digit',
     month: 'short',
     year:  'numeric',

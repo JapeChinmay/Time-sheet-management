@@ -18,7 +18,7 @@ import { apiFetch } from "@/lib/api";
 import { UserDetailSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
-import { parseUTC } from "@/lib/date";
+import { parseUTC, fmtDateOnly } from "@/lib/date";
 
 /* ─── types ─── */
 type UserDetail = {
@@ -294,7 +294,7 @@ export default function UserDetailPage() {
           {user.designation && <p className="text-xs text-slate-400 mt-0.5">{user.designation}</p>}
           {user.birthdate && (
             <p className="text-xs text-slate-400 mt-0.5">
-              🎂 {new Date(user.birthdate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              🎂 {fmtDateOnly(user.birthdate)}
             </p>
           )}
           {user.manager && <p className="text-xs text-slate-400 mt-0.5">Manager: {user.manager.name}</p>}

@@ -9,6 +9,7 @@ import {
   Info, UserCog, Users, ShieldCheck, FileCheck2,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { fmtDateOnly } from "@/lib/date";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
 
 /* ── types ── */
@@ -66,9 +67,7 @@ function countDays(start: string, end: string) {
   return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
 }
 
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
+const fmtDate = fmtDateOnly;
 
 
 /* ── Compact approval row ── */

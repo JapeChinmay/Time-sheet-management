@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, getSession } from "next-auth/react";
 
 function getBrowser(ua: string) {
-  if (ua.includes("Chrome"))  return "Chrome";
+  if (ua.includes("Chrome")) return "Chrome";
   if (ua.includes("Firefox")) return "Firefox";
-  if (ua.includes("Safari"))  return "Safari";
+  if (ua.includes("Safari")) return "Safari";
   return "Unknown";
 }
 
@@ -16,16 +16,36 @@ function getLocation(): Promise<{ latitude: number; longitude: number }> {
     if (!navigator.geolocation) return resolve({ latitude: 0, longitude: 0 });
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-      ()    => resolve({ latitude: 0, longitude: 0 })
+      () => resolve({ latitude: 0, longitude: 0 })
     );
   });
 }
 
 export default function LoginPage() {
-  const [email,    setEmail]    = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [location, setLocation] = useState({
+    latitude: 0,
+    longitude: 0
+  });
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+        }
+      );
+    }
+  }, []);
 
   const router = useRouter();
 
@@ -35,16 +55,16 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const { latitude, longitude } = await getLocation();
+      const { latitude, longitude } = location;
 
       const result = await signIn("credentials", {
-        redirect:  false,
+        redirect: false,
         email,
         password,
-        latitude:  String(latitude),
+        latitude: String(latitude),
         longitude: String(longitude),
-        browser:   getBrowser(navigator.userAgent),
-        system:    navigator.platform,
+        browser: getBrowser(navigator.userAgent),
+        system: navigator.platform,
       });
 
       if (result?.error) {
@@ -53,7 +73,7 @@ export default function LoginPage() {
       }
 
       const session = await getSession();
-      const role    = session?.user?.role ?? "";
+      const role = session?.user?.role ?? "";
 
       if (role === "ADMIN" || role === "SUPERADMIN") {
         router.push("/admin");
