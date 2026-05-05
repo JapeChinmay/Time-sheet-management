@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, Search } from "lucide-react";
 
@@ -36,6 +37,9 @@ export default function Combobox({
   const [open, setOpen]       = useState(false);
   const [query, setQuery]     = useState("");
   const [panel, setPanel]     = useState({ top: 0, left: 0, width: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
@@ -156,41 +160,46 @@ export default function Combobox({
         />
       </button>
 
-      {/* Dropdown panel — fixed so it escapes any overflow:hidden parent */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            ref={panelRef}
-            style={{ position: "fixed", top: panel.top, left: panel.left, width: panel.width }}
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.12 }}
-            className="z-[9999] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
-          >
-            {/* Search */}
-            {searchable && (
-              <div className="p-2 border-b border-slate-100">
-                <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    ref={searchRef}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Escape" && (setOpen(false), setQuery(""))}
-                    placeholder="Search…"
-                    className="w-full pl-7 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
+      {/* Dropdown panel — rendered via portal to document.body so it escapes
+          any overflow:hidden parent AND any CSS-transform containing block
+          (e.g. Framer Motion scale animations on modals). */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              ref={panelRef}
+              style={{ position: "fixed", top: panel.top, left: panel.left, width: panel.width }}
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.12 }}
+              className="z-[9999] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
+            >
+              {/* Search */}
+              {searchable && (
+                <div className="p-2 border-b border-slate-100">
+                  <div className="relative">
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      ref={searchRef}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Escape" && (setOpen(false), setQuery(""))}
+                      placeholder="Search…"
+                      className="w-full pl-7 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
                 </div>
+              )}
+              {/* Options */}
+              <div className="max-h-56 overflow-y-auto p-1">
+                {renderContent()}
               </div>
-            )}
-            {/* Options */}
-            <div className="max-h-56 overflow-y-auto p-1">
-              {renderContent()}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

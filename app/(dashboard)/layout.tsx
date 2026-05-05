@@ -36,6 +36,7 @@ import {
   Eye,
   EyeOff,
   Palmtree,
+  UserCog,
 } from "lucide-react";
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
@@ -112,6 +113,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/manager/leaves":        "Leave Approval",
   "/employee/leaves":       "My Leaves",
   "/admin/leave-policies":  "Leave Policies",
+  "/hr/leaves":             "HR Leave Approval",
   "/support/report-bug":    "Report Bug",
 };
 
@@ -980,6 +982,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+  const isHR    = user?.role === "HR";
   /* MANAGER role always shows the Manager sidebar section, regardless of isPM */
   const showManagerSection = user?.role === "MANAGER" || isPM;
 
@@ -1015,8 +1018,18 @@ export default function DashboardLayout({
   };
 
   useEffect(() => {
-    /* MANAGER role always sees the Manager section — skip the API call */
-    if (!userId || user?.role === "MANAGER") return;
+    /* Skip roles that never need the isPM check:
+     *  - MANAGER → always shows Manager section regardless
+     *  - ADMIN / SUPERADMIN → have their own admin section
+     *  - HR → has their own HR section
+     */
+    if (
+      !userId ||
+      user?.role === "MANAGER" ||
+      user?.role === "ADMIN" ||
+      user?.role === "SUPERADMIN" ||
+      user?.role === "HR"
+    ) return;
     apiFetch(`/projects?filter=projectManagerId||$eq||${userId}&limit=1`)
       .then((res) => {
         const data = Array.isArray(res) ? res : res.data ?? [];
@@ -1085,6 +1098,16 @@ export default function DashboardLayout({
             </>
           )}
 
+          {isHR && (
+            <>
+              <div className="border-t border-slate-200 my-3" />
+              <p className="text-xs text-pink-400 uppercase px-2 flex items-center gap-1">
+                <UserCog size={11} /> HR
+              </p>
+              <SidebarItem icon={<UserCog size={16} />} label="Leave Approval" href="/hr/leaves" active={pathname.startsWith("/hr/leaves")} onClose={() => setOpen(false)} />
+            </>
+          )}
+
           {isAdmin && (
             <>
               <div className="border-t border-slate-200 my-3" />
@@ -1093,6 +1116,7 @@ export default function DashboardLayout({
               <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"     active={isActive("/employee/users")}                 onClose={() => setOpen(false)} />
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")}  onClose={() => setOpen(false)} />
               <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}      onClose={() => setOpen(false)} />
+              {/* <SidebarItem icon={<UserCog size={16} />}        label="HR Leave Approval" href="/hr/leaves"           active={pathname.startsWith("/hr/leaves")}           onClose={() => setOpen(false)} /> */}
               <SidebarItem icon={<ScrollText size={16} />}     label="Leave Policies"     href="/admin/leave-policies" active={pathname.startsWith("/admin/leave-policies")} onClose={() => setOpen(false)} />
               <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")}    onClose={() => setOpen(false)} />
             </>
