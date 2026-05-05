@@ -108,6 +108,20 @@ export default function ProjectDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [taskAssignModal, setTaskAssignModal] = useState<TaskItem | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteProject = async () => {
+    setDeleting(true);
+    try {
+      await apiFetch(`/projects/${id}`, { method: "DELETE" });
+      router.replace("/employee/projects");
+    } catch (e: any) {
+      setError(e.message ?? "Failed to delete project.");
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
@@ -191,12 +205,20 @@ export default function ProjectDetailPage() {
             {project.description && <p className="text-slate-500 mt-2 max-w-xl">{project.description}</p>}
           </div>
           {isAdmin && (
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition text-slate-600"
-            >
-              <Pencil size={13} /> Edit Details
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition text-slate-600"
+              >
+                <Pencil size={13} /> Edit Details
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition text-red-500"
+              >
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -477,6 +499,46 @@ export default function ProjectDetailPage() {
             users={allUsers}
             onClose={() => setTaskAssignModal(null)}
             onSaved={async () => { setTaskAssignModal(null); await loadProject(); }} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <Backdrop onClose={() => !deleting && setShowDeleteConfirm(false)}>
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <Trash2 size={18} className="text-red-500" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-slate-900">Delete Project</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600">
+                Are you sure you want to delete <span className="font-medium text-slate-900">"{project.name}"</span>?
+                All associated data will be permanently removed.
+              </p>
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={handleDeleteProject}
+                  disabled={deleting}
+                  className="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-red-600 transition disabled:opacity-60"
+                >
+                  {deleting ? "Deleting…" : "Yes, Delete"}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </Backdrop>
         )}
       </AnimatePresence>
     </div>
