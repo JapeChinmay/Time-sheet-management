@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -96,6 +97,7 @@ export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
+  const { data: session } = useSession();
   const [user, setUser] = useState<UserDetail | null>(null);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [logs, setLogs] = useState<LoginLog[]>([]);
@@ -122,11 +124,7 @@ export default function UserDetailPage() {
   const [pwdErr, setPwdErr]               = useState("");
   const [pwdSuccess, setPwdSuccess]       = useState(false);
 
-  /* caller role (for showing password change button) */
-  const callerRole = (() => {
-    try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).role ?? ""; }
-    catch { return ""; }
-  })();
+  const callerRole = session?.user?.role ?? "";
   const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
   useEffect(() => {

@@ -1,35 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function DashboardRedirect() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    if (status === "loading") return;
+    if (!session) { router.replace("/login"); return; }
 
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const role = payload.role?.toUpperCase();
-
-  
-      if (role === "SUPERADMIN" || role === "ADMIN") {
-        window.location.href = "/admin";
-      } else if (role === "MANAGER") {
-        window.location.href = "/manager";
-      } else if (role === "HR") {
-        window.location.href = "/hr";
-      } else {
-        window.location.href = "/employee";
-      }
-
-    } catch {
-      window.location.href = "/login";
-    }
-  }, []);
+    const role = session.user?.role?.toUpperCase() ?? "";
+    if (role === "SUPERADMIN" || role === "ADMIN")  router.replace("/admin");
+    else if (role === "MANAGER")                    router.replace("/manager/timesheets");
+    else if (role === "HR")                         router.replace("/hr/leaves");
+    else                                            router.replace("/employee");
+  }, [session, status, router]);
 
   return null;
 }

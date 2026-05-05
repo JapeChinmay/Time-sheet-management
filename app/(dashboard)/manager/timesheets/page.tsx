@@ -49,11 +49,6 @@ const ROLE_COLORS: Record<string, string> = {
   INTERN:     "bg-orange-100 text-orange-700",
 };
 
-function getUser() {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-  catch { return { name: "Manager" }; }
-}
-
 /* ─── date helpers ─── */
 function isoDate(d: Date) { return format(d, "yyyy-MM-dd"); }
 function weekRange(anchor: Date) {

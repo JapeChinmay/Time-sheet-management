@@ -111,15 +111,6 @@ function AdminTimesheetsContent() {
 
   const COLORS = ["#111827", "#4B5563", "#9CA3AF", "#D1D5DB"];
 
-  const getUser = () => {
-    try {
-      const token = localStorage.getItem("token");
-      return JSON.parse(atob(token!.split(".")[1]));
-    } catch {
-      return { name: "Admin" };
-    }
-  };
-
   if (loading) {
     return <TimesheetAnalyticsSkeleton />;
   }

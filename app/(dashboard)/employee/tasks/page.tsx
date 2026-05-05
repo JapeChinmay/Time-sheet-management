@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -99,14 +100,6 @@ const MODULE_LABEL: Record<string, string> = Object.fromEntries(SAP_MODULES.map(
 
 type Filter = "ALL" | TaskStatus;
 
-function getCallerRole(): string {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).role ?? ""; }
-  catch { return ""; }
-}
-function getUser() {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-  catch { return { name: "User" }; }
-}
 
 /* ─── status icon helper ─── */
 function StatusIcon({ status, size = 20 }: { status: TaskStatus; size?: number }) {
@@ -309,7 +302,8 @@ function TasksPageInner() {
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState<Filter>("ALL");
   const [search, setSearch]     = useState("");
-  const [callerRole, setCallerRole] = useState("");
+  const { data: session } = useSession();
+  const callerRole = session?.user?.role ?? "";
 
   /* create task modal */
   const [showCreate, setShowCreate]   = useState(false);
@@ -342,8 +336,6 @@ function TasksPageInner() {
   };
 
   useEffect(() => {
-    const role = getCallerRole();
-    setCallerRole(role);
     loadTasks();
 
     const shouldCreate = searchParams.get("createTask") === "1";

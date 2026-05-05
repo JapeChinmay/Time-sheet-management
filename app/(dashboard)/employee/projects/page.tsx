@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { ProjectsGridSkeleton } from "@/components/ui/skeletons";
+import { useSession } from "next-auth/react";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 import TimePicker from "@/components/ui/TimePicker";
@@ -169,6 +170,7 @@ function PMTooltip({
 /* ═══════════════════════════════════════════ */
 export default function ProjectsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [projects,    setProjects]    = useState<Project[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState("");
@@ -245,16 +247,12 @@ export default function ProjectsPage() {
 
   const openExportPage = () => router.push("/employee/projects/export");
 
-  const getUser = () => {
-    try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-    catch { return { name: "User" }; }
-  };
-
   if (loading) return <ProjectsGridSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
 
-  const callerRole        = getUser().role ?? "";
+  const callerRole        = session?.user?.role ?? "";
   const canManageProjects = !["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole);
+  const canExport         = ["ADMIN", "SUPERADMIN"].includes(callerRole);
 
   const createdCount   = projects.filter(p => p.status === "CREATED").length;
   const activeCount    = projects.filter(p => p.status === "ACTIVE").length;
@@ -277,14 +275,16 @@ export default function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={openExportPage}
-            disabled={projects.length === 0}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Export project timesheet report"
-          >
-            <Download size={14} /> Export Data
-          </button>
+          {canExport && (
+            <button
+              onClick={openExportPage}
+              disabled={projects.length === 0}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Export project timesheet report"
+            >
+              <Download size={14} /> Export Data
+            </button>
+          )}
           {canManageProjects && (
             <button
               onClick={() => setShowCreate(true)}
