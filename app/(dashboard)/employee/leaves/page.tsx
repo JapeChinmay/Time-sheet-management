@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, X, CalendarDays, Clock, CheckCircle2, XCircle,
@@ -144,10 +145,6 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function decodeToken() {
-  try { return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])); }
-  catch { return { name: "User" }; }
-}
 
 const INPUT = "w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white";
 
@@ -169,7 +166,8 @@ export default function LeavesPage() {
   const [cancelId, setCancelId]     = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
-  const user = typeof window !== "undefined" ? decodeToken() : { name: "" };
+  const { data: session } = useSession();
+  const user = { name: session?.user?.name ?? "" };
 
   useEffect(() => {
     Promise.all([
