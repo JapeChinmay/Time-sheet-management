@@ -48,20 +48,20 @@ const TYPE_LABEL: Record<LeaveType, string> = {
 };
 
 const TYPE_COLORS: Record<LeaveType, string> = {
-  SICK:         "bg-rose-100 text-rose-700",
-  CASUAL:       "bg-blue-100 text-blue-700",
-  EARNED:       "bg-emerald-100 text-emerald-700",
-  HALF_DAY:     "bg-cyan-100 text-cyan-700",
-  UNPAID:       "bg-amber-100 text-amber-800 border border-amber-300",
-  MATERNITY:    "bg-pink-100 text-pink-700",
-  PATERNITY:    "bg-indigo-100 text-indigo-700",
+  SICK: "bg-rose-100 text-rose-700",
+  CASUAL: "bg-blue-100 text-blue-700",
+  EARNED: "bg-emerald-100 text-emerald-700",
+  HALF_DAY: "bg-cyan-100 text-cyan-700",
+  UNPAID: "bg-amber-100 text-amber-800 border border-amber-300",
+  MATERNITY: "bg-pink-100 text-pink-700",
+  PATERNITY: "bg-indigo-100 text-indigo-700",
   COMPENSATORY: "bg-amber-100 text-amber-700",
 };
 
 const STATUS_STYLES: Record<LeaveStatus, { pill: string; label: string }> = {
-  PENDING:  { pill: "bg-amber-50 text-amber-700 border-amber-200",  label: "Pending"  },
-  APPROVED: { pill: "bg-green-50 text-green-700 border-green-200",  label: "Approved" },
-  REJECTED: { pill: "bg-red-50   text-red-600   border-red-200",    label: "Rejected" },
+  PENDING: { pill: "bg-amber-50 text-amber-700 border-amber-200", label: "Pending" },
+  APPROVED: { pill: "bg-green-50 text-green-700 border-green-200", label: "Approved" },
+  REJECTED: { pill: "bg-red-50   text-red-600   border-red-200", label: "Rejected" },
 };
 
 function countDays(start: string, end: string) {
@@ -73,60 +73,63 @@ const fmtDate = fmtDateOnly;
 
 /* ── Compact approval row ── */
 function ApprovalRow({ a, meId }: { a: LeaveApproval; meId: number }) {
-  const isHR  = a.approver?.role === "HR";
-  const isMe  = a.approverId === meId;
+  const isHR = a.approver?.role === "HR";
+  const isMe = a.approverId === meId;
 
   return (
-    <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${
-      isHR ? "bg-pink-50 border-pink-100" : "bg-white border-slate-100"
-    }`}>
-      {a.status === "APPROVED"
-        ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
-        : a.status === "REJECTED"
-        ? <XCircle size={13} className="text-red-500 shrink-0" />
-        : isHR
-        ? <UserCog size={13} className="text-pink-400 shrink-0" />
-        : <Clock size={13} className="text-amber-500 shrink-0" />}
-
-      <span className={`text-xs flex-1 truncate ${isHR ? "text-pink-700" : "text-slate-600"} ${isMe ? "font-semibold" : ""}`}>
-        {a.approver?.name ?? `#${a.approverId}`}
-        {isMe && <span className="font-normal text-slate-400"> (you)</span>}
-      </span>
-
-      {isHR && a.status === "PENDING" && (
-        <span className="text-[9px] font-semibold bg-pink-100 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-full mr-1">
-          HR
-        </span>
-      )}
-
-      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-        a.status === "APPROVED"
-          ? "bg-green-100 text-green-700"
-          : a.status === "REJECTED"
-          ? "bg-red-100 text-red-600"
-          : isHR
-          ? "bg-pink-100 text-pink-600"
-          : "bg-amber-100 text-amber-700"
+    <div className={`rounded-lg px-3 py-2 border ${isHR ? "bg-pink-50 border-pink-100" : "bg-white border-slate-100"
       }`}>
-        {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
-      </span>
+      <div className="flex items-center gap-2">
+        {a.status === "APPROVED"
+          ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
+          : a.status === "REJECTED"
+            ? <XCircle size={13} className="text-red-500 shrink-0" />
+            : isHR
+              ? <UserCog size={13} className="text-pink-400 shrink-0" />
+              : <Clock size={13} className="text-amber-500 shrink-0" />}
+
+        <span className={`text-xs flex-1 truncate ${isHR ? "text-pink-700" : "text-slate-600"} ${isMe ? "font-semibold" : ""}`}>
+          {a.approver?.name ?? `#${a.approverId}`}
+          {isMe && <span className="font-normal text-slate-400"> (you)</span>}
+        </span>
+
+        {isHR && a.status === "PENDING" && (
+          <span className="text-[9px] font-semibold bg-pink-100 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-full">
+            HR
+          </span>
+        )}
+
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${a.status === "APPROVED"
+            ? "bg-green-100 text-green-700"
+            : a.status === "REJECTED"
+              ? "bg-red-100 text-red-600"
+              : isHR
+                ? "bg-pink-100 text-pink-600"
+                : "bg-amber-100 text-amber-700"
+          }`}>
+          {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
+        </span>
+      </div>
+      {a.reviewNote && (
+        <p className="text-[11px] text-slate-400 italic mt-1 pl-5">"{a.reviewNote}"</p>
+      )}
     </div>
   );
 }
 
 /* ════════════════════════════════════════════════════════════════════════ */
 export default function HRLeavesPage() {
-  const [leaves, setLeaves]             = useState<Leave[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState("");
+  const [leaves, setLeaves] = useState<Leave[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | LeaveStatus>("PENDING");
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
 
   /* review modal */
-  const [reviewing, setReviewing]   = useState<Leave | null>(null);
+  const [reviewing, setReviewing] = useState<Leave | null>(null);
   const [reviewNote, setReviewNote] = useState("");
-  const [saving, setSaving]         = useState(false);
-  const [reviewErr, setReviewErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reviewErr, setReviewErr] = useState("");
 
   const { data: session } = useSession();
   const me = { name: session?.user?.name ?? "", sub: Number(session?.user?.id ?? 0) };
@@ -175,13 +178,13 @@ export default function HRLeavesPage() {
   const filtered = (statusFilter === "ALL" ? hrLeaves : hrLeaves.filter((l) => l.status === statusFilter))
     .filter((l) => !showUnpaidOnly || l.type === "UNPAID");
 
-  const pending       = hrLeaves.filter((l) => l.status === "PENDING").length;
-  const approved      = hrLeaves.filter((l) => l.status === "APPROVED").length;
-  const rejected      = hrLeaves.filter((l) => l.status === "REJECTED").length;
+  const pending = hrLeaves.filter((l) => l.status === "PENDING").length;
+  const approved = hrLeaves.filter((l) => l.status === "APPROVED").length;
+  const rejected = hrLeaves.filter((l) => l.status === "REJECTED").length;
   const unpaidPending = hrLeaves.filter((l) => l.type === "UNPAID" && l.status === "PENDING").length;
 
   if (loading) return <TablePageSkeleton />;
-  if (error)   return <p className="text-red-500 p-4">{error}</p>;
+  if (error) return <p className="text-red-500 p-4">{error}</p>;
 
   return (
     <div className="space-y-6">
@@ -211,10 +214,10 @@ export default function HRLeavesPage() {
       {/* ── Summary ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Awaiting HR Sign-off", value: pending,       color: "bg-pink-50 text-pink-600",    icon: <UserCog size={16} />       },
-          { label: "Approved",             value: approved,      color: "bg-green-50 text-green-700",  icon: <CheckCircle2 size={16} />  },
-          { label: "Rejected",             value: rejected,      color: "bg-red-50 text-red-600",      icon: <XCircle size={16} />       },
-          { label: "Unpaid Pending",        value: unpaidPending, color: "bg-amber-50 text-amber-700",  icon: <Banknote size={16} />      },
+          { label: "Awaiting HR Sign-off", value: pending, color: "bg-pink-50 text-pink-600", icon: <UserCog size={16} /> },
+          { label: "Approved", value: approved, color: "bg-green-50 text-green-700", icon: <CheckCircle2 size={16} /> },
+          { label: "Rejected", value: rejected, color: "bg-red-50 text-red-600", icon: <XCircle size={16} /> },
+          { label: "Unpaid Pending", value: unpaidPending, color: "bg-amber-50 text-amber-700", icon: <Banknote size={16} /> },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>{s.icon}</div>
@@ -234,11 +237,10 @@ export default function HRLeavesPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
-                statusFilter === s
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${statusFilter === s
                   ? "bg-pink-600 text-white border-pink-600"
                   : "bg-white text-slate-600 border-slate-200 hover:border-pink-300"
-              }`}
+                }`}
             >
               {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
               <span className={`ml-1.5 text-[10px] ${statusFilter === s ? "text-white/70" : "text-slate-400"}`}>{count}</span>
@@ -250,11 +252,10 @@ export default function HRLeavesPage() {
         <div className="ml-auto">
           <button
             onClick={() => setShowUnpaidOnly((p) => !p)}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition ${
-              showUnpaidOnly
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition ${showUnpaidOnly
                 ? "bg-amber-600 text-white border-amber-600"
                 : "bg-white text-amber-700 border-amber-300 hover:border-amber-500"
-            }`}
+              }`}
           >
             <Banknote size={12} />
             Unpaid Only
@@ -279,16 +280,16 @@ export default function HRLeavesPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((l, i) => {
-            const days     = countDays(l.startDate, l.endDate);
-            const s        = STATUS_STYLES[l.status];
-            const canAct   = myApprovalPending(l);
+            const days = countDays(l.startDate, l.endDate);
+            const s = STATUS_STYLES[l.status];
+            const canAct = myApprovalPending(l);
             const isUnpaid = l.type === "UNPAID";
             const myApproval = l.approvals?.find((a) => a.approverId === me.sub);
 
             /* PM approval statuses for context */
             const pmApprovals = l.approvals?.filter((a) => a.approver?.role !== "HR") ?? [];
             const pmAllApproved = pmApprovals.length > 0 && pmApprovals.every((a) => a.status === "APPROVED");
-            const pmAnyPending  = pmApprovals.some((a) => a.status === "PENDING");
+            const pmAnyPending = pmApprovals.some((a) => a.status === "PENDING");
 
             return (
               <motion.div
@@ -296,16 +297,14 @@ export default function HRLeavesPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className={`rounded-xl p-5 flex items-start gap-4 border ${
-                  isUnpaid
+                className={`rounded-xl p-5 flex items-start gap-4 border ${isUnpaid
                     ? "bg-amber-50/60 border-amber-200 border-l-4 border-l-amber-400"
                     : "bg-white border-slate-200 border-l-4 border-l-pink-300"
-                }`}
+                  }`}
               >
                 {/* Avatar */}
-                <div className={`w-10 h-10 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 ${
-                  isUnpaid ? "bg-amber-600" : "bg-pink-500"
-                }`}>
+                <div className={`w-10 h-10 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 ${isUnpaid ? "bg-amber-600" : "bg-pink-500"
+                  }`}>
                   {l.user?.name?.[0]?.toUpperCase() ?? "?"}
                 </div>
 
@@ -351,11 +350,10 @@ export default function HRLeavesPage() {
 
                   {/* PM approval progress indicator */}
                   {l.status === "PENDING" && pmApprovals.length > 0 && (
-                    <div className={`mt-2 flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border ${
-                      pmAllApproved
+                    <div className={`mt-2 flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg border ${pmAllApproved
                         ? "bg-green-50 border-green-200 text-green-700"
                         : "bg-slate-50 border-slate-200 text-slate-500"
-                    }`}>
+                      }`}>
                       {pmAllApproved
                         ? <CheckCircle2 size={11} className="shrink-0" />
                         : <Clock size={11} className="shrink-0" />}
@@ -365,55 +363,28 @@ export default function HRLeavesPage() {
                     </div>
                   )}
 
-                  {/* Approval chain badges */}
+                  {/* Approval chain */}
                   {l.approvals && l.approvals.length > 0 && (() => {
-                    const isHR    = (a: LeaveApproval) => a.approver?.role === "HR";
-                    const mgmtList = l.approvals!.filter((a) => !isHR(a));
-                    const hrList   = l.approvals!.filter(isHR);
+                    const isHRApprover = (a: LeaveApproval) => a.approver?.role === "HR";
+                    const mgmtList = l.approvals!.filter((a) => !isHRApprover(a));
+                    const hrList = l.approvals!.filter(isHRApprover);
                     return (
-                      <div className="mt-2.5 space-y-1.5">
+                      <div className="mt-2.5 space-y-2">
                         {mgmtList.length > 0 && (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-16 shrink-0">Manager</span>
-                            <div className="flex flex-wrap gap-1">
-                              {mgmtList.map((a) => (
-                                <span
-                                  key={a.id}
-                                  title={a.reviewNote ?? a.status}
-                                  className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                                    a.status === "APPROVED" ? "bg-green-50 text-green-700 border-green-200"
-                                    : a.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200"
-                                    : "bg-amber-50 text-amber-700 border-amber-200"
-                                  }`}
-                                >
-                                  {a.status === "APPROVED" ? <CheckCircle2 size={9} /> : a.status === "REJECTED" ? <XCircle size={9} /> : <Clock size={9} />}
-                                  {a.approver?.name ?? `#${a.approverId}`}
-                                </span>
-                              ))}
+                          <div>
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Manager</span>
+                            <div className="mt-1 space-y-1">
+                              {mgmtList.map((a) => <ApprovalRow key={a.id} a={a} meId={me.sub} />)}
                             </div>
                           </div>
                         )}
                         {hrList.length > 0 && (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-semibold text-pink-500 uppercase tracking-wide w-16 shrink-0 flex items-center gap-1">
+                          <div>
+                            <span className="text-[10px] font-semibold text-pink-500 uppercase tracking-wide flex items-center gap-1">
                               <UserCog size={10} /> HR
                             </span>
-                            <div className="flex flex-wrap gap-1">
-                              {hrList.map((a) => (
-                                <span
-                                  key={a.id}
-                                  title={a.reviewNote ?? a.status}
-                                  className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                                    a.status === "APPROVED" ? "bg-green-50 text-green-700 border-green-200"
-                                    : a.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200"
-                                    : "bg-pink-50 text-pink-600 border-pink-200"
-                                  }`}
-                                >
-                                  {a.status === "APPROVED" ? <CheckCircle2 size={9} /> : a.status === "REJECTED" ? <XCircle size={9} /> : <UserCog size={9} />}
-                                  {a.approver?.name ?? `#${a.approverId}`}
-                                  {a.approverId === me.sub && " (you)"}
-                                </span>
-                              ))}
+                            <div className="mt-1 space-y-1">
+                              {hrList.map((a) => <ApprovalRow key={a.id} a={a} meId={me.sub} />)}
                             </div>
                           </div>
                         )}
@@ -422,21 +393,20 @@ export default function HRLeavesPage() {
                   })()}
 
                   {/* My already-submitted decision */}
-                  {myApproval && myApproval.status !== "PENDING" && (
+                  {/* {myApproval && myApproval.status !== "PENDING" && (
                     <p className={`text-xs mt-1.5 font-medium ${myApproval.status === "APPROVED" ? "text-green-600" : "text-red-500"}`}>
                       You {myApproval.status === "APPROVED" ? "approved" : "rejected"} this request
                       {myApproval.reviewNote && <span className="font-normal text-slate-400"> · {myApproval.reviewNote}</span>}
                     </p>
-                  )}
+                  )} */}
                 </div>
 
                 {/* Action */}
                 {canAct && (
                   <button
                     onClick={() => { setReviewing(l); setReviewNote(""); setReviewErr(""); }}
-                    className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition text-white ${
-                      isUnpaid ? "bg-amber-600 hover:bg-amber-700" : "bg-pink-600 hover:bg-pink-700"
-                    }`}
+                    className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition text-white ${isUnpaid ? "bg-amber-600 hover:bg-amber-700" : "bg-pink-600 hover:bg-pink-700"
+                      }`}
                   >
                     <MessageSquare size={13} /> Review
                   </button>
@@ -451,11 +421,11 @@ export default function HRLeavesPage() {
       <AnimatePresence>
         {reviewing && (() => {
           const isUnpaid = reviewing.type === "UNPAID";
-          const days     = countDays(reviewing.startDate, reviewing.endDate);
+          const days = countDays(reviewing.startDate, reviewing.endDate);
           const isHRApproval = (a: LeaveApproval) => a.approver?.role === "HR";
           const groups = [
             { label: "Manager", items: reviewing.approvals?.filter((a) => !isHRApproval(a)) ?? [], isHR: false },
-            { label: "HR",      items: reviewing.approvals?.filter(isHRApproval) ?? [],             isHR: true  },
+            { label: "HR", items: reviewing.approvals?.filter(isHRApproval) ?? [], isHR: true },
           ].filter((g) => g.items.length > 0);
 
           return (
@@ -466,18 +436,15 @@ export default function HRLeavesPage() {
             >
               <motion.div
                 initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
-                className={`w-full max-w-md shadow-xl rounded-2xl flex flex-col max-h-[90vh] border ${
-                  isUnpaid ? "bg-white border-amber-200" : "bg-white border-pink-200"
-                }`}
+                className={`w-full max-w-md shadow-xl rounded-2xl flex flex-col max-h-[90vh] border ${isUnpaid ? "bg-white border-amber-200" : "bg-white border-pink-200"
+                  }`}
               >
                 {/* Header */}
-                <div className={`px-6 py-5 border-b shrink-0 flex items-center justify-between rounded-t-2xl ${
-                  isUnpaid ? "bg-amber-50 border-amber-200" : "bg-pink-50 border-pink-200"
-                }`}>
+                <div className={`px-6 py-5 border-b shrink-0 flex items-center justify-between rounded-t-2xl ${isUnpaid ? "bg-amber-50 border-amber-200" : "bg-pink-50 border-pink-200"
+                  }`}>
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      isUnpaid ? "bg-amber-600" : "bg-pink-500"
-                    }`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isUnpaid ? "bg-amber-600" : "bg-pink-500"
+                      }`}>
                       {isUnpaid
                         ? <Banknote size={16} className="text-white" />
                         : <UserCog size={15} className="text-white" />}
@@ -540,9 +507,8 @@ export default function HRLeavesPage() {
                   )}
 
                   {/* Leave summary */}
-                  <div className={`rounded-xl p-4 space-y-2.5 ${
-                    isUnpaid ? "bg-amber-50 border border-amber-200" : "bg-slate-50 border border-slate-100"
-                  }`}>
+                  <div className={`rounded-xl p-4 space-y-2.5 ${isUnpaid ? "bg-amber-50 border border-amber-200" : "bg-slate-50 border border-slate-100"
+                    }`}>
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${TYPE_COLORS[reviewing.type]}`}>
                         {isUnpaid ? "⚠ Unpaid Leave" : TYPE_LABEL[reviewing.type]}
@@ -561,17 +527,15 @@ export default function HRLeavesPage() {
 
                   {/* Approval chain in modal */}
                   {groups.length > 0 && (
-                    <div className={`rounded-xl px-4 py-3 space-y-2.5 border ${
-                      isUnpaid ? "bg-amber-50/60 border-amber-200" : "bg-pink-50/40 border-pink-200"
-                    }`}>
+                    <div className={`rounded-xl px-4 py-3 space-y-2.5 border ${isUnpaid ? "bg-amber-50/60 border-amber-200" : "bg-pink-50/40 border-pink-200"
+                      }`}>
                       <p className={`text-xs font-semibold ${isUnpaid ? "text-amber-700" : "text-pink-700"}`}>
                         Approval chain
                       </p>
                       {groups.map((g) => (
                         <div key={g.label}>
-                          <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 flex items-center gap-1 ${
-                            g.isHR ? "text-pink-500" : "text-slate-500"
-                          }`}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 flex items-center gap-1 ${g.isHR ? "text-pink-500" : "text-slate-500"
+                            }`}>
                             {g.isHR && <UserCog size={10} />}
                             {g.label}
                           </p>
@@ -599,11 +563,10 @@ export default function HRLeavesPage() {
                           : "e.g. Approved as per HR policy…"
                       }
                       rows={2}
-                      className={`w-full border px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 bg-white resize-none ${
-                        isUnpaid
+                      className={`w-full border px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 bg-white resize-none ${isUnpaid
                           ? "border-amber-200 focus:ring-amber-400/30"
                           : "border-pink-200 focus:ring-pink-400/30"
-                      }`}
+                        }`}
                     />
                   </div>
 
@@ -613,9 +576,8 @@ export default function HRLeavesPage() {
                 </div>
 
                 {/* Footer */}
-                <div className={`px-6 py-4 border-t shrink-0 space-y-3 rounded-b-2xl ${
-                  isUnpaid ? "bg-amber-50 border-amber-200" : "bg-pink-50 border-pink-200"
-                }`}>
+                <div className={`px-6 py-4 border-t shrink-0 space-y-3 rounded-b-2xl ${isUnpaid ? "bg-amber-50 border-amber-200" : "bg-pink-50 border-pink-200"
+                  }`}>
                   {isUnpaid && (
                     <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-700 font-medium">
                       <AlertTriangle size={11} />
@@ -626,17 +588,16 @@ export default function HRLeavesPage() {
                     <button
                       onClick={() => submitReview("APPROVED")}
                       disabled={saving}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2 text-white ${
-                        isUnpaid
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2 text-white ${isUnpaid
                           ? "bg-amber-600 hover:bg-amber-700"
                           : "bg-pink-600 hover:bg-pink-700"
-                      }`}
+                        }`}
                     >
                       {saving
                         ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         : isUnpaid
-                        ? <><Banknote size={14} /> Approve</>
-                        : <><Check size={14} /> HR Approve</>
+                          ? <><Banknote size={14} /> Approve</>
+                          : <><Check size={14} /> HR Approve</>
                       }
                     </button>
                     <button
