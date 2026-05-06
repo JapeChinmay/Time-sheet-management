@@ -100,7 +100,7 @@ export default function AdminDashboard() {
       setLogs(rawLogs);
 
       // Resolve locations in background
-      const resolved = await Promise.all(
+      const resolved :any = await Promise.all(
         rawLogs.map(async (l) => ({
           ...l,
         }))
