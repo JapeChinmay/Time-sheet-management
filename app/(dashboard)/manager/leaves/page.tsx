@@ -42,7 +42,7 @@ type Leave = {
 
 /* ── constants ── */
 const TYPE_LABEL: Record<LeaveType, string> = {
-  SICK: "Sick", CASUAL: "Casual", EARNED: "Earned", UNPAID: "Unpaid",
+  SICK: "Sick", CASUAL: "Casual", EARNED: "Earned", UNPAID: "Unpaid", HALF_DAY:"Half Day",
   MATERNITY: "Maternity", PATERNITY: "Paternity", COMPENSATORY: "Compensatory",
 };
 
