@@ -693,7 +693,7 @@ function TasksPageInner() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium text-slate-900 ${done ? "line-through text-slate-400" : ""}`}>
+                    <p className={`text-sm font-medium text-slate-900`}>
                       {task.name}
                     </p>
                     {task.description && (
@@ -719,7 +719,8 @@ function TasksPageInner() {
                       {isAdmin ? (
                         <button
                           title="Toggle billable"
-                          onClick={async (e) => { e.stopPropagation();
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             const next = !task.billable;
                             setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, billable: next } : t));
                             await apiFetch(`/tasks/${task.id}`, {
@@ -788,47 +789,47 @@ function TasksPageInner() {
 
                   {/* Status picker */}
                   <div onClick={(e) => e.stopPropagation()}>
-                  {(() => {
-                    const isCreator = task.assigner?.id === meId;
-                    const isPM = task.project?.projectManagerId === meId;
-                    const isAssignee = task.assignees?.some((a) => a.id === meId) ?? false;
-                    const canManage = isAdmin || isCreator || isPM;
-                    if (canManage) {
-                      return (
-                        <StatusPicker
-                          taskId={task.id}
-                          current={task.status}
-                          onChanged={handleStatusChanged}
-                          onForward={isAdmin ? () => openForward(task) : () => { }}
-                          onAssign={isAdmin ? () => openAssign(task) : () => { }}
-                          forwardedTo={isForwarded ? task.forwardedTo ?? null : null}
-                        />
+                    {(() => {
+                      const isCreator = task.assigner?.id === meId;
+                      const isPM = task.project?.projectManagerId === meId;
+                      const isAssignee = task.assignees?.some((a) => a.id === meId) ?? false;
+                      const canManage = isAdmin || isCreator || isPM;
+                      if (canManage) {
+                        return (
+                          <StatusPicker
+                            taskId={task.id}
+                            current={task.status}
+                            onChanged={handleStatusChanged}
+                            onForward={isAdmin ? () => openForward(task) : () => { }}
+                            onAssign={isAdmin ? () => openAssign(task) : () => { }}
+                            forwardedTo={isForwarded ? task.forwardedTo ?? null : null}
+                          />
+                        );
+                      }
+                      if (isAssignee || ["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole)) {
+                        return (
+                          <StatusPicker
+                            taskId={task.id}
+                            current={task.status}
+                            onChanged={handleStatusChanged}
+                            onForward={() => { }}
+                            onAssign={() => { }}
+                            allowedStatuses={ASSIGNEE_ALLOWED_STATUSES}
+                          />
+                        );
+                      }
+                      return isForwarded ? (
+                        <span className="flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border bg-indigo-50 text-indigo-700 border-indigo-200">
+                          <Forward size={10} />
+                          Forwarded to {task.forwardedTo?.name ?? "…"}
+                        </span>
+                      ) : (
+                        <span className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${STATUS_META[task.status].badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[task.status].dot}`} />
+                          {STATUS_META[task.status].label}
+                        </span>
                       );
-                    }
-                    if (isAssignee || ["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole)) {
-                      return (
-                        <StatusPicker
-                          taskId={task.id}
-                          current={task.status}
-                          onChanged={handleStatusChanged}
-                          onForward={() => { }}
-                          onAssign={() => { }}
-                          allowedStatuses={ASSIGNEE_ALLOWED_STATUSES}
-                        />
-                      );
-                    }
-                    return isForwarded ? (
-                      <span className="flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border bg-indigo-50 text-indigo-700 border-indigo-200">
-                        <Forward size={10} />
-                        Forwarded to {task.forwardedTo?.name ?? "…"}
-                      </span>
-                    ) : (
-                      <span className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${STATUS_META[task.status].badge}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[task.status].dot}`} />
-                        {STATUS_META[task.status].label}
-                      </span>
-                    );
-                  })()}
+                    })()}
                   </div>
 
                   <ChevronRight size={16} className="flex-shrink-0 text-slate-300 group-hover:text-slate-500 transition mt-0.5" />
