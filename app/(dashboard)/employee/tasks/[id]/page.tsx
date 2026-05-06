@@ -43,32 +43,32 @@ type Task = {
 };
 
 const STATUS_META: Record<TaskStatus, { label: string; badge: string; dot: string }> = {
-  CREATED:             { label: "Created",         badge: "bg-slate-100 text-slate-600 border-slate-200",   dot: "bg-slate-400"  },
-  ASSIGNED:            { label: "Assigned",        badge: "bg-blue-50 text-blue-700 border-blue-200",       dot: "bg-blue-500"   },
-  WORK_IN_PROGRESS:    { label: "In Progress",     badge: "bg-amber-50 text-amber-700 border-amber-200",    dot: "bg-amber-500"  },
-  ON_HOLD:             { label: "On Hold",         badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
-  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency", badge: "bg-red-50 text-red-700 border-red-200",          dot: "bg-red-500"    },
-  COMPLETED:           { label: "Completed",       badge: "bg-green-50 text-green-700 border-green-200",    dot: "bg-green-500"  },
+  CREATED: { label: "Created", badge: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" },
+  ASSIGNED: { label: "Assigned", badge: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  WORK_IN_PROGRESS: { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
+  ON_HOLD: { label: "On Hold", badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency", badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+  COMPLETED: { label: "Completed", badge: "bg-green-50 text-green-700 border-green-200", dot: "bg-green-500" },
 };
 
-const ALL_STATUSES: TaskStatus[] = ["CREATED","ASSIGNED","WORK_IN_PROGRESS","ON_HOLD","EXTERNAL_DEPENDENCY","COMPLETED"];
-const ASSIGNEE_ALLOWED: TaskStatus[] = ["WORK_IN_PROGRESS","ON_HOLD","EXTERNAL_DEPENDENCY","COMPLETED"];
+const ALL_STATUSES: TaskStatus[] = ["CREATED", "ASSIGNED", "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY", "COMPLETED"];
+const ASSIGNEE_ALLOWED: TaskStatus[] = ["WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY", "COMPLETED"];
 
 const SAP_MODULES = [
   { value: "", label: "None" },
-  { value: "SAP_BTP",  label: "SAP BTP"  }, { value: "SAP_MM",   label: "SAP MM"   },
-  { value: "SAP_FICO", label: "SAP FICO" }, { value: "SAP_SF",   label: "SAP SF"   },
-  { value: "SAP_SD",   label: "SAP SD"   }, { value: "SAP_HCM",  label: "SAP HCM"  },
-  { value: "SAP_ABAP", label: "SAP ABAP" }, { value: "SAP_PS",   label: "SAP PS"   },
+  { value: "SAP_BTP", label: "SAP BTP" }, { value: "SAP_MM", label: "SAP MM" },
+  { value: "SAP_FICO", label: "SAP FICO" }, { value: "SAP_SF", label: "SAP SF" },
+  { value: "SAP_SD", label: "SAP SD" }, { value: "SAP_HCM", label: "SAP HCM" },
+  { value: "SAP_ABAP", label: "SAP ABAP" }, { value: "SAP_PS", label: "SAP PS" },
 ];
 const MODULE_LABEL: Record<string, string> = Object.fromEntries(SAP_MODULES.slice(1).map((m) => [m.value, m.label]));
 
 function StatusIcon({ status }: { status: TaskStatus }) {
-  if (status === "COMPLETED")           return <CheckCircle2 size={18} className="text-green-500" />;
-  if (status === "WORK_IN_PROGRESS")    return <Clock size={18} className="text-amber-500" />;
-  if (status === "ON_HOLD")             return <PauseCircle size={18} className="text-orange-500" />;
+  if (status === "COMPLETED") return <CheckCircle2 size={18} className="text-green-500" />;
+  if (status === "WORK_IN_PROGRESS") return <Clock size={18} className="text-amber-500" />;
+  if (status === "ON_HOLD") return <PauseCircle size={18} className="text-orange-500" />;
   if (status === "EXTERNAL_DEPENDENCY") return <AlertTriangle size={18} className="text-red-500" />;
-  if (status === "ASSIGNED")            return <Circle size={18} className="text-blue-400" />;
+  if (status === "ASSIGNED") return <Circle size={18} className="text-blue-400" />;
   return <Circle size={18} className="text-slate-300" />;
 }
 
@@ -87,22 +87,22 @@ export default function TaskDetailPage() {
   const params = useParams();
   const taskId = Number(params.id);
   const { data: session } = useSession();
-  const meId       = Number(session?.user?.id ?? 0);
+  const meId = Number(session?.user?.id ?? 0);
   const callerRole = session?.user?.role ?? "";
-  const isAdmin    = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
+  const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
-  const [task,    setTask]    = useState<Task | null>(null);
+  const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState("");
+  const [error, setError] = useState("");
 
   /* edit state */
-  const [editing,    setEditing]    = useState(false);
-  const [editForm,   setEditForm]   = useState({ name: "", description: "", module: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
-  const [saving,     setSaving]     = useState(false);
-  const [saveError,  setSaveError]  = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", description: "", module: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   /* status change */
-  const [newStatus,  setNewStatus]  = useState<TaskStatus | "">("");
+  const [newStatus, setNewStatus] = useState<TaskStatus | "">("");
   const [statusNote, setStatusNote] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
 
@@ -130,7 +130,7 @@ export default function TaskDetailPage() {
   if (error || !task) return <div className="p-8 text-red-500 text-sm">{error || "Task not found"}</div>;
 
   const isCreator = task.assigner?.id === meId;
-  const isPM      = task.project?.projectManagerId === meId;
+  const isPM = task.project?.projectManagerId === meId;
   const canManage = isAdmin || isCreator || isPM;
   const isAssignee = task.assignees?.some((a) => a.id === meId) ?? false;
 
@@ -186,7 +186,7 @@ export default function TaskDetailPage() {
   };
 
   const sortedStatus = [...(task.statusLogs ?? [])].sort((a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime());
-  const sortedFwd    = [...(task.forwardLogs  ?? [])].sort((a, b) => new Date(a.forwardedAt).getTime() - new Date(b.forwardedAt).getTime());
+  const sortedFwd = [...(task.forwardLogs ?? [])].sort((a, b) => new Date(a.forwardedAt).getTime() - new Date(b.forwardedAt).getTime());
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -211,7 +211,7 @@ export default function TaskDetailPage() {
                 className="flex-1 text-xl font-semibold text-slate-900 border-b-2 border-slate-900 focus:outline-none bg-transparent"
               />
             ) : (
-              <h1 className={`flex-1 text-xl font-semibold text-slate-900 ${task.status === "COMPLETED" ? "line-through text-slate-400" : ""}`}>
+              <h1 className={`flex-1 text-xl font-semibold text-slate-900`}>
                 {task.name}
               </h1>
             )}
@@ -321,10 +321,10 @@ export default function TaskDetailPage() {
                   options={[
                     { value: "", label: "—" },
                     ...(editForm.durationUnit === "HOUR"
-                      ? [0.5,1,1.5,2,3,4,5,6,7,8,9,10,12,16,20,24].map((h) => ({ value: String(h), label: h === 0.5 ? "30 mins" : h === 1.5 ? "1.5 hrs" : `${h} hr${h > 1 ? "s" : ""}` }))
+                      ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24].map((h) => ({ value: String(h), label: h === 0.5 ? "30 mins" : h === 1.5 ? "1.5 hrs" : `${h} hr${h > 1 ? "s" : ""}` }))
                       : editForm.durationUnit === "DAY"
-                      ? [0.5,1,1.5,2,3,4,5,6,7,10,14,21,30].map((d) => ({ value: String(d), label: `${d} day${d > 1 ? "s" : ""}` }))
-                      : []
+                        ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30].map((d) => ({ value: String(d), label: `${d} day${d > 1 ? "s" : ""}` }))
+                        : []
                     ),
                   ]}
                 />
