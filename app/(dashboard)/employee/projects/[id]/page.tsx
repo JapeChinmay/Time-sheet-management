@@ -14,7 +14,7 @@ import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 import TimePicker from "@/components/ui/TimePicker";
-import { parseUTC, fmtDate as fmtDateUTC, fmtDateOnly } from "@/lib/date";
+import { parseUTC, fmtDateTime, fmtDateOnly } from "@/lib/date";
 
 type UserOption = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
 type Member = UserOption;
@@ -227,7 +227,7 @@ export default function ProjectDetailPage() {
         <InfoCard icon={<Clock size={16} />}     label="Total Hours" value={`${totalHours}h`} />
         <InfoCard icon={<Users size={16} />}     label="Members"     value={String(project.members?.length ?? 0)} />
         <InfoCard icon={<Briefcase size={16} />} label="Timesheets"  value={String(timesheets.length)} />
-        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDateUTC(parseUTC(project.createdAt)) : "—"} />
+        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDateTime(parseUTC(project.createdAt)) : "—"} />
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">

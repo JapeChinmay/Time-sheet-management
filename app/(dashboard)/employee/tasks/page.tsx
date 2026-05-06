@@ -12,7 +12,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
-import { parseUTC, fmtDate } from "@/lib/date";
+import { parseUTC, fmtDate, fmtDateTime } from "@/lib/date";
 
 /* ─── types ─── */
 type TaskStatus =
@@ -752,7 +752,7 @@ function TasksPageInner() {
 
                       <span className="flex items-center gap-1 text-xs text-slate-400">
                         <Calendar size={11} />
-                        {fmtDate(parseUTC(task.createdAt))}
+                        {fmtDateTime(parseUTC(task.createdAt))}
                       </span>
                     </div>
 
@@ -801,7 +801,7 @@ function TasksPageInner() {
                                   )}
                                 </div>
                                 <span className="flex-shrink-0 text-[10px]">
-                                  {fmtDate(parseUTC(log.changedAt))}
+                                  {fmtDateTime(parseUTC(log.changedAt))}
                                 </span>
                               </div>
                             );

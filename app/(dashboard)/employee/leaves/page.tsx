@@ -16,14 +16,17 @@ import DatePicker from "@/components/ui/DatePicker";
 function addCalendarDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /* ── types ── */
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
-  | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+  | "MATERNITY" | "PATERNITY" | "COMPENSATORY" | "HALF_DAY";
 
 type LeaveApproval = {
   id: number;
@@ -60,6 +63,7 @@ const LEAVE_TYPES: { value: LeaveType; label: string }[] = [
   { value: "SICK",         label: "Sick Leave"        },
   { value: "CASUAL",       label: "Casual Leave"      },
   { value: "EARNED",       label: "Earned Leave"      },
+  { value: "HALF_DAY",     label: "Half Day Leave"    },
   { value: "UNPAID",       label: "Unpaid Leave"      },
   { value: "MATERNITY",    label: "Maternity Leave"   },
   { value: "PATERNITY",    label: "Paternity Leave"   },
@@ -70,6 +74,7 @@ const TYPE_COLORS: Record<LeaveType, string> = {
   SICK:         "bg-rose-100 text-rose-700",
   CASUAL:       "bg-blue-100 text-blue-700",
   EARNED:       "bg-emerald-100 text-emerald-700",
+  HALF_DAY:     "bg-cyan-100 text-cyan-700",
   UNPAID:       "bg-slate-100 text-slate-600",
   MATERNITY:    "bg-pink-100 text-pink-700",
   PATERNITY:    "bg-indigo-100 text-indigo-700",
@@ -137,8 +142,9 @@ function ApprovalProgress({ approvals }: { approvals?: LeaveApproval[] }) {
   );
 }
 
-function countDays(start: string, end: string) {
+function countDays(start: string, end: string, type?: LeaveType) {
   if (!start || !end) return 0;
+  if (type === "HALF_DAY") return 0.5;
   return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
 }
 
@@ -183,11 +189,15 @@ export default function LeavesPage() {
 
   const applyLeave = async () => {
     if (!form.startDate) { setApplyErr("Start date is required."); return; }
-    if (!form.endDate)   { setApplyErr("End date is required."); return; }
-    if (new Date(form.endDate) < new Date(form.startDate)) { setApplyErr("End date must be after start date."); return; }
+
+    // half day: force endDate = startDate
+    const effectiveEndDate = form.type === "HALF_DAY" ? form.startDate : form.endDate;
+
+    if (!effectiveEndDate)   { setApplyErr("End date is required."); return; }
+    if (new Date(effectiveEndDate) < new Date(form.startDate)) { setApplyErr("End date must be after start date."); return; }
     if (form.reason.trim().length < 5) { setApplyErr("Reason must be at least 5 characters."); return; }
 
-    const totalDays   = countDays(form.startDate, form.endDate);
+    const totalDays   = countDays(form.startDate, effectiveEndDate, form.type);
     const remaining   = Math.max(0, quota?.remainingThisMonth ?? Infinity);
     const hasSplit    = quota?.hasPolicy && form.type !== "UNPAID" && totalDays > remaining;
     const paidDays    = hasSplit ? Math.floor(Math.min(totalDays, remaining)) : totalDays;
@@ -199,17 +209,17 @@ export default function LeavesPage() {
 
       if (!hasSplit) {
         /* Normal submit — all days within quota OR already UNPAID type */
-        const leaveType = (quota?.hasPolicy && remaining <= 0 && form.type !== "UNPAID") ? "UNPAID" as const : form.type;
+        const leaveType = (quota?.hasPolicy && remaining <= 0 && form.type !== "UNPAID" && form.type !== "HALF_DAY") ? "UNPAID" as const : form.type;
         const res = await apiFetch("/leaves", {
           method: "POST",
-          body: JSON.stringify({ type: leaveType, startDate: form.startDate, endDate: form.endDate, reason }),
+          body: JSON.stringify({ type: leaveType, startDate: form.startDate, endDate: effectiveEndDate, reason }),
         });
         setLeaves((prev) => [res, ...prev]);
       } else if (paidDays === 0) {
         /* All days are beyond quota — submit entirely as UNPAID */
         const res = await apiFetch("/leaves", {
           method: "POST",
-          body: JSON.stringify({ type: "UNPAID", startDate: form.startDate, endDate: form.endDate, reason }),
+          body: JSON.stringify({ type: "UNPAID", startDate: form.startDate, endDate: effectiveEndDate, reason }),
         });
         setLeaves((prev) => [res, ...prev]);
       } else {
@@ -224,7 +234,7 @@ export default function LeavesPage() {
           }),
           apiFetch("/leaves", {
             method: "POST",
-            body: JSON.stringify({ type: "UNPAID", startDate: unpaidStart, endDate: form.endDate, reason }),
+            body: JSON.stringify({ type: "UNPAID", startDate: unpaidStart, endDate: effectiveEndDate, reason }),
           }),
         ]);
         /* Newest first */
@@ -483,16 +493,23 @@ export default function LeavesPage() {
                 </div>
 
                 {/* Dates */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid gap-3 ${form.type === "HALF_DAY" ? "grid-cols-1" : "grid-cols-2"}`}>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Start Date *</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      {form.type === "HALF_DAY" ? "Date *" : "Start Date *"}
+                    </label>
                     <DatePicker
                       value={form.startDate}
-                      onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
+                      onChange={(v) => setForm((f) => ({
+                        ...f,
+                        startDate: v,
+                        endDate: f.type === "HALF_DAY" ? v : (f.endDate && f.endDate < v ? "" : f.endDate),
+                      }))}
                       placeholder="Select date"
                       min={new Date().toISOString().split("T")[0]}
                     />
                   </div>
+                  {form.type !== "HALF_DAY" && (
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">End Date *</label>
                     <DatePicker
@@ -502,13 +519,15 @@ export default function LeavesPage() {
                       min={form.startDate || new Date().toISOString().split("T")[0]}
                     />
                   </div>
+                  )}
                 </div>
 
                 {/* Duration + long-leave breakdown */}
-                {form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && (() => {
-                  const total     = countDays(form.startDate, form.endDate);
+                {form.startDate && (form.type === "HALF_DAY" || (form.endDate && new Date(form.endDate) >= new Date(form.startDate))) && (() => {
+                  const effEnd    = form.type === "HALF_DAY" ? form.startDate : form.endDate;
+                  const total     = countDays(form.startDate, effEnd, form.type);
                   const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
-                  const hasSplit  = quota?.hasPolicy && form.type !== "UNPAID" && total > remaining;
+                  const hasSplit  = quota?.hasPolicy && form.type !== "UNPAID" && form.type !== "HALF_DAY" && total > remaining;
                   const paidDays  = hasSplit ? Math.floor(Math.min(total, remaining)) : total;
                   const unpaidDays = hasSplit ? total - paidDays : 0;
 
@@ -517,6 +536,7 @@ export default function LeavesPage() {
                       {/* Simple duration line */}
                       <p className="text-xs text-indigo-600 font-medium">
                         {total} day{total !== 1 ? "s" : ""} selected
+                        {form.type === "HALF_DAY" && <span className="ml-1 text-cyan-600">(½ day quota)</span>}
                       </p>
 
                       {/* Long-leave warning card */}
@@ -591,10 +611,11 @@ export default function LeavesPage() {
 
               {/* Footer — recalculate split state for button label */}
               {(() => {
-                const total     = countDays(form.startDate, form.endDate);
+                const effEnd    = form.type === "HALF_DAY" ? form.startDate : form.endDate;
+                const total     = countDays(form.startDate, effEnd, form.type);
                 const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
-                const hasSplit  = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && total > remaining);
-                const allUnpaid = !!(quota?.hasPolicy && form.type !== "UNPAID" && remaining <= 0 && total > 0 && form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate));
+                const hasSplit  = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.type !== "HALF_DAY" && form.startDate && effEnd && new Date(effEnd) >= new Date(form.startDate) && total > remaining);
+                const allUnpaid = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.type !== "HALF_DAY" && remaining <= 0 && total > 0 && form.startDate && effEnd && new Date(effEnd) >= new Date(form.startDate));
 
                 return (
                   <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 shrink-0">

@@ -16,7 +16,7 @@ import { TablePageSkeleton } from "@/components/ui/skeletons";
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
-  | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+  | "MATERNITY" | "PATERNITY" | "COMPENSATORY" | "HALF_DAY";
 
 type LeaveApproval = {
   id: number;
@@ -51,6 +51,7 @@ const TYPE_COLORS: Record<LeaveType, string> = {
   SICK:         "bg-rose-100 text-rose-700",
   CASUAL:       "bg-blue-100 text-blue-700",
   EARNED:       "bg-emerald-100 text-emerald-700",
+  HALF_DAY:     "bg-cyan-100 text-cyan-700",
   UNPAID:       "bg-amber-100 text-amber-800 border border-amber-300",
   MATERNITY:    "bg-pink-100 text-pink-700",
   PATERNITY:    "bg-indigo-100 text-indigo-700",

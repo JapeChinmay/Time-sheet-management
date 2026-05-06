@@ -38,7 +38,6 @@ export function fmtDateTime(d: Date): string {
     hour:         '2-digit',
     minute:       '2-digit',
     hour12:       false,
-    timeZoneName: 'short',
   });
 }
 
