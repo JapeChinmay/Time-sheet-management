@@ -8,6 +8,7 @@ import {
   ListTodo, CheckCircle2, Circle, Folder, Users,
   Calendar, Search, X, ChevronRight, Plus, Loader2,
   Clock, PauseCircle, AlertTriangle, ChevronDown, Forward, Check,
+  ExternalLink,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
@@ -47,9 +48,11 @@ type Task = {
   status: TaskStatus;
   module?: string | null;
   billable: boolean;
+  durationUnit?: 'HOUR' | 'DAY' | null;
+  durationValue?: number | null;
   projectId: number;
   createdAt: string;
-  project?: { id: number; name: string };
+  project?: { id: number; name: string; projectManagerId?: number | null };
   assignees?: Assignee[];
   assigner?: { id: number; name: string } | null;
   forwardedFromId?: number | null;
@@ -60,17 +63,17 @@ type Task = {
   statusLogs?: StatusLog[];
 };
 type Project = { id: number; name: string };
-type User    = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
+type User = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
 
 /* ─── status meta ─── */
 type StatusMeta = { label: string; badge: string; dot: string };
 const STATUS_META: Record<TaskStatus, StatusMeta> = {
-  CREATED:             { label: "Created",         badge: "bg-slate-100 text-slate-600 border-slate-200",   dot: "bg-slate-400"  },
-  ASSIGNED:            { label: "Assigned",        badge: "bg-blue-50 text-blue-700 border-blue-200",       dot: "bg-blue-500"   },
-  WORK_IN_PROGRESS:    { label: "In Progress",     badge: "bg-amber-50 text-amber-700 border-amber-200",    dot: "bg-amber-500"  },
-  ON_HOLD:             { label: "On Hold",         badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
-  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency", badge: "bg-red-50 text-red-700 border-red-200",          dot: "bg-red-500"    },
-  COMPLETED:           { label: "Completed",       badge: "bg-green-50 text-green-700 border-green-200",    dot: "bg-green-500"  },
+  CREATED: { label: "Created", badge: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" },
+  ASSIGNED: { label: "Assigned", badge: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  WORK_IN_PROGRESS: { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
+  ON_HOLD: { label: "On Hold", badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency", badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+  COMPLETED: { label: "Completed", badge: "bg-green-50 text-green-700 border-green-200", dot: "bg-green-500" },
 };
 
 const ALL_STATUSES: TaskStatus[] = [
@@ -78,7 +81,7 @@ const ALL_STATUSES: TaskStatus[] = [
 ];
 
 const ASSIGNEE_ALLOWED_STATUSES: TaskStatus[] = [
-  "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY",
+  "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY", "COMPLETED",
 ];
 
 function dropdownStatuses(current: TaskStatus): TaskStatus[] {
@@ -87,14 +90,14 @@ function dropdownStatuses(current: TaskStatus): TaskStatus[] {
 
 /* ─── SAP modules ─── */
 const SAP_MODULES = [
-  { value: "SAP_BTP",  label: "SAP BTP"  },
-  { value: "SAP_MM",   label: "SAP MM"   },
+  { value: "SAP_BTP", label: "SAP BTP" },
+  { value: "SAP_MM", label: "SAP MM" },
   { value: "SAP_FICO", label: "SAP FICO" },
-  { value: "SAP_SF",   label: "SAP SF"   },
-  { value: "SAP_SD",   label: "SAP SD"   },
-  { value: "SAP_HCM",  label: "SAP HCM"  },
+  { value: "SAP_SF", label: "SAP SF" },
+  { value: "SAP_SD", label: "SAP SD" },
+  { value: "SAP_HCM", label: "SAP HCM" },
   { value: "SAP_ABAP", label: "SAP ABAP" },
-  { value: "SAP_PS",   label: "SAP PS"   },
+  { value: "SAP_PS", label: "SAP PS" },
 ] as const;
 const MODULE_LABEL: Record<string, string> = Object.fromEntries(SAP_MODULES.map((m) => [m.value, m.label]));
 
@@ -103,12 +106,12 @@ type Filter = "ALL" | TaskStatus;
 
 /* ─── status icon helper ─── */
 function StatusIcon({ status, size = 20 }: { status: TaskStatus; size?: number }) {
-  if (status === "COMPLETED")           return <CheckCircle2  size={size} className="text-green-500" />;
-  if (status === "WORK_IN_PROGRESS")    return <Clock         size={size} className="text-amber-500" />;
-  if (status === "ON_HOLD")             return <PauseCircle   size={size} className="text-orange-500" />;
+  if (status === "COMPLETED") return <CheckCircle2 size={size} className="text-green-500" />;
+  if (status === "WORK_IN_PROGRESS") return <Clock size={size} className="text-amber-500" />;
+  if (status === "ON_HOLD") return <PauseCircle size={size} className="text-orange-500" />;
   if (status === "EXTERNAL_DEPENDENCY") return <AlertTriangle size={size} className="text-red-500" />;
-  if (status === "ASSIGNED")            return <Circle        size={size} className="text-blue-400" />;
-  return                                       <Circle        size={size} className="text-slate-300" />;
+  if (status === "ASSIGNED") return <Circle size={size} className="text-blue-400" />;
+  return <Circle size={size} className="text-slate-300" />;
 }
 
 /* ─── inline status picker ─── */
@@ -129,10 +132,10 @@ function StatusPicker({
   forwardedTo?: { id: number; name: string } | null;
   allowedStatuses?: TaskStatus[];
 }) {
-  const [open, setOpen]                   = useState(false);
-  const [saving, setSaving]               = useState(false);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null);
-  const [description, setDescription]    = useState("");
+  const [description, setDescription] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -182,9 +185,8 @@ function StatusPicker({
         onClick={() => { if (!pendingStatus) setOpen((p) => !p); }}
         disabled={saving}
         title="Change status"
-        className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border cursor-pointer hover:opacity-80 transition ${
-          isFwdBadge ? "bg-indigo-50 text-indigo-700 border-indigo-200" : meta.badge
-        }`}
+        className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border cursor-pointer hover:opacity-80 transition ${isFwdBadge ? "bg-indigo-50 text-indigo-700 border-indigo-200" : meta.badge
+          }`}
       >
         {saving
           ? <Loader2 size={10} className="animate-spin" />
@@ -201,8 +203,8 @@ function StatusPicker({
         {open && !pendingStatus && nextOptions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0,  scale: 1     }}
-            exit={{ opacity: 0,  y: 4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
             className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden w-52"
           >
@@ -241,8 +243,8 @@ function StatusPicker({
         {pendingStatus && (
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0,  scale: 1     }}
-            exit={{ opacity: 0,  y: 4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
             className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-64 p-4 space-y-3"
           >
@@ -298,34 +300,35 @@ export default function TasksPage() {
 function TasksPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [tasks, setTasks]       = useState<Task[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [filter, setFilter]     = useState<Filter>("ALL");
-  const [search, setSearch]     = useState("");
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("ALL");
+  const [search, setSearch] = useState("");
   const { data: session } = useSession();
   const callerRole = session?.user?.role ?? "";
 
   /* create task modal */
-  const [showCreate, setShowCreate]   = useState(false);
-  const [projects, setProjects]       = useState<Project[]>([]);
-  const [users, setUsers]             = useState<User[]>([]);
-  const [createForm, setCreateForm]   = useState({ projectId: "", name: "", module: "", description: "", billable: true });
+  const [showCreate, setShowCreate] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [createForm, setCreateForm] = useState({ projectId: "", name: "", module: "", description: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
   const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
-  const [userSearch, setUserSearch]   = useState("");
-  const [creating, setCreating]       = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
   /* forward / assign task modal */
-  const [fwdTask, setFwdTask]           = useState<Task | null>(null);
-  const [fwdMode, setFwdMode]           = useState<"forward" | "assign">("forward");
-  const [fwdAllUsers, setFwdAllUsers]   = useState<User[]>([]);
-  const [fwdModule, setFwdModule]       = useState("");
-  const [fwdUserId, setFwdUserId]       = useState<number | null>(null);
-  const [fwdSearch, setFwdSearch]       = useState("");
-  const [forwarding, setForwarding]     = useState(false);
-  const [fwdErr, setFwdErr]             = useState("");
+  const [fwdTask, setFwdTask] = useState<Task | null>(null);
+  const [fwdMode, setFwdMode] = useState<"forward" | "assign">("forward");
+  const [fwdAllUsers, setFwdAllUsers] = useState<User[]>([]);
+  const [fwdModule, setFwdModule] = useState("");
+  const [fwdUserId, setFwdUserId] = useState<number | null>(null);
+  const [fwdSearch, setFwdSearch] = useState("");
+  const [forwarding, setForwarding] = useState(false);
+  const [fwdErr, setFwdErr] = useState("");
 
   const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
+  const meId = Number(session?.user?.id ?? 0);
 
   const loadTasks = async () => {
     try {
@@ -345,11 +348,11 @@ function TasksPageInner() {
       if (isAdmin) {
         apiFetch("/projects?limit=200&sort=name,ASC").then((pRes) => {
           setProjects(Array.isArray(pRes) ? pRes : pRes.data ?? []);
-        }).catch(() => {});
+        }).catch(() => { });
         apiFetch("/users?limit=200&sort=name,ASC").then((uRes) => {
           setUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
-        }).catch(() => {});
-        setCreateForm({ projectId: preProjectId, name: "", module: "", description: "", billable: true });
+        }).catch(() => { });
+        setCreateForm({ projectId: preProjectId, name: "", module: "", description: "", billable: true, durationUnit: "", durationValue: "" });
         setSelectedAssignee(null);
         setUserSearch("");
         setCreateError("");
@@ -381,7 +384,7 @@ function TasksPageInner() {
 
   /* ── Create task helpers ── */
   const openCreateModal = async () => {
-    setCreateForm({ projectId: "", name: "", module: "", description: "", billable: true });
+    setCreateForm({ projectId: "", name: "", module: "", description: "", billable: true, durationUnit: "", durationValue: "" });
     setSelectedAssignee(null);
     setUserSearch("");
     setCreateError("");
@@ -407,8 +410,10 @@ function TasksPageInner() {
         projectId: Number(createForm.projectId),
         billable: createForm.billable,
       };
-      if (createForm.module)                   body.module = createForm.module;
-      if (createForm.description.trim())       body.description = createForm.description.trim();
+      if (createForm.module) body.module = createForm.module;
+      if (createForm.description.trim()) body.description = createForm.description.trim();
+      if (createForm.durationUnit) body.durationUnit = createForm.durationUnit;
+      if (createForm.durationUnit && createForm.durationValue) body.durationValue = Number(createForm.durationValue);
       const task: Task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
 
       if (selectedAssignee !== null) {
@@ -461,7 +466,7 @@ function TasksPageInner() {
 
   const submitForward = async () => {
     if (fwdMode === "forward" && !fwdModule) { setFwdErr("Please select a module."); return; }
-    if (!fwdUserId)  { setFwdErr("Please select a user."); return; }
+    if (!fwdUserId) { setFwdErr("Please select a user."); return; }
     setForwarding(true);
     setFwdErr("");
     try {
@@ -501,10 +506,10 @@ function TasksPageInner() {
 
   /* ── derived counts ── */
   const countByStatus = (s: TaskStatus) => tasks.filter((t) => t.status === s).length;
-  const openCnt      = tasks.filter((t) => t.status !== "COMPLETED").length;
+  const openCnt = tasks.filter((t) => t.status !== "COMPLETED").length;
   const completedCnt = countByStatus("COMPLETED");
-  const totalCnt     = tasks.length;
-  const pct          = totalCnt > 0 ? Math.round((completedCnt / totalCnt) * 100) : 0;
+  const totalCnt = tasks.length;
+  const pct = totalCnt > 0 ? Math.round((completedCnt / totalCnt) * 100) : 0;
 
   const filtered = tasks.filter((t) => {
     if (filter !== "ALL" && t.status !== filter) return false;
@@ -550,12 +555,12 @@ function TasksPageInner() {
 
   const ROLE_COLORS: Record<string, string> = {
     SUPERADMIN: "bg-rose-100 text-rose-700",
-    ADMIN:      "bg-indigo-100 text-indigo-700",
-    MANAGER:    "bg-teal-100 text-teal-700",
-    HR:         "bg-pink-100 text-pink-700",
-    INTERNAL:   "bg-slate-100 text-slate-600",
-    EXTERNAL:   "bg-orange-100 text-orange-700",
-    INTERN:     "bg-amber-100 text-amber-700",
+    ADMIN: "bg-indigo-100 text-indigo-700",
+    MANAGER: "bg-teal-100 text-teal-700",
+    HR: "bg-pink-100 text-pink-700",
+    INTERNAL: "bg-slate-100 text-slate-600",
+    EXTERNAL: "bg-orange-100 text-orange-700",
+    INTERN: "bg-amber-100 text-amber-700",
   };
 
   return (
@@ -578,10 +583,10 @@ function TasksPageInner() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Total"       value={totalCnt}     colorClass="bg-slate-100 text-slate-600"    icon={<ListTodo   size={15} />} />
-        <SummaryCard label="Open"        value={openCnt}      colorClass="bg-indigo-100 text-indigo-600"  icon={<Circle     size={15} />} />
+        <SummaryCard label="Total" value={totalCnt} colorClass="bg-slate-100 text-slate-600" icon={<ListTodo size={15} />} />
+        <SummaryCard label="Open" value={openCnt} colorClass="bg-indigo-100 text-indigo-600" icon={<Circle size={15} />} />
         <SummaryCard label="In Progress" value={countByStatus("WORK_IN_PROGRESS")} colorClass="bg-amber-100 text-amber-700" icon={<Clock size={15} />} />
-        <SummaryCard label="Completed"   value={completedCnt} colorClass="bg-green-100 text-green-600"    icon={<CheckCircle2 size={15} />} />
+        <SummaryCard label="Completed" value={completedCnt} colorClass="bg-green-100 text-green-600" icon={<CheckCircle2 size={15} />} />
       </div>
 
       {/* Progress bar */}
@@ -609,19 +614,17 @@ function TasksPageInner() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                  filter === f
-                    ? "bg-slate-900 text-white border-slate-900 shadow"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-                }`}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${filter === f
+                  ? "bg-slate-900 text-white border-slate-900 shadow"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                  }`}
               >
                 {meta && filter !== f && (
                   <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
                 )}
                 {f === "ALL" ? "All" : STATUS_META[f as TaskStatus].label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                  filter === f ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
-                }`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${filter === f ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
                   {cnt}
                 </span>
               </button>
@@ -659,6 +662,16 @@ function TasksPageInner() {
             {filtered.map((task, i) => {
               const done = task.status === "COMPLETED";
               const isForwarded = task.status === "ASSIGNED" && !!task.forwardedToId;
+
+              /* overdue: has duration, not completed, deadline passed */
+              const isOverdue = (() => {
+                if (done || !task.durationUnit || task.durationValue == null) return false;
+                const ms = task.durationUnit === "HOUR"
+                  ? task.durationValue * 60 * 60 * 1000
+                  : task.durationValue * 24 * 60 * 60 * 1000;
+                return Date.now() > new Date(task.createdAt).getTime() + ms;
+              })();
+
               return (
                 <motion.div
                   key={task.id}
@@ -666,7 +679,12 @@ function TasksPageInner() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ delay: Math.min(i * 0.02, 0.2) }}
-                  className={`relative flex items-start gap-4 px-5 py-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition group first:rounded-t-xl last:rounded-b-xl ${done ? "opacity-60" : ""}`}
+                  onClick={() => router.push(`/employee/tasks/${task.id}`)}
+                  className={`relative flex items-start gap-4 px-5 py-4 border-b last:border-0 transition group first:rounded-t-xl last:rounded-b-xl cursor-pointer
+                    ${isOverdue
+                      ? "bg-red-50/60 border-red-100 hover:bg-red-50"
+                      : "border-slate-100 hover:bg-slate-50/60"}
+                    ${done ? "opacity-60" : ""}`}
                 >
                   {/* Status icon */}
                   <div className="mt-0.5 flex-shrink-0">
@@ -685,7 +703,7 @@ function TasksPageInner() {
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       {task.project && (
                         <span
-                          onClick={() => router.push(`/employee/projects/${task.projectId}`)}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/employee/projects/${task.projectId}`); }}
                           className="flex items-center gap-1 text-xs text-indigo-600 hover:underline cursor-pointer"
                         >
                           <Folder size={11} /> {task.project.name}
@@ -701,7 +719,7 @@ function TasksPageInner() {
                       {isAdmin ? (
                         <button
                           title="Toggle billable"
-                          onClick={async () => {
+                          onClick={async (e) => { e.stopPropagation();
                             const next = !task.billable;
                             setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, billable: next } : t));
                             await apiFetch(`/tasks/${task.id}`, {
@@ -711,20 +729,18 @@ function TasksPageInner() {
                               setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, billable: !next } : t))
                             );
                           }}
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition hover:opacity-70 cursor-pointer ${
-                            task.billable
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition hover:opacity-70 cursor-pointer ${task.billable
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-100 text-slate-500"
+                            }`}
                         >
                           {task.billable ? "Billable" : "Non-billable"}
                         </button>
                       ) : (
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          task.billable
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-100 text-slate-500"
-                        }`}>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${task.billable
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-slate-100 text-slate-500"
+                          }`}>
                           {task.billable ? "Billable" : "Non-billable"}
                         </span>
                       )}
@@ -754,84 +770,50 @@ function TasksPageInner() {
                         <Calendar size={11} />
                         {fmtDateTime(parseUTC(task.createdAt))}
                       </span>
+
+                      {task.durationUnit && task.durationValue != null && (
+                        <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${isOverdue ? "bg-red-100 text-red-700 border-red-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
+                          <Clock size={10} />
+                          {task.durationValue} {task.durationUnit === "HOUR" ? `hr${task.durationValue > 1 ? "s" : ""}` : `day${task.durationValue > 1 ? "s" : ""}`}
+                          {isOverdue && <span className="font-bold ml-0.5">· Overdue</span>}
+                        </span>
+                      )}
                     </div>
 
-                    {/* Unified status + forward history */}
-                    {(task.statusLogs?.length ?? 0) > 0 && (() => {
-                      const sortedStatus = [...task.statusLogs!].sort(
-                        (a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime()
-                      );
-                      const sortedFwd = [...(task.forwardLogs ?? [])].sort(
-                        (a, b) => new Date(a.forwardedAt).getTime() - new Date(b.forwardedAt).getTime()
-                      );
-                      let fwdIdx = 0;
-                      return (
-                        <div className="mt-2 pl-1 border-l-2 border-slate-100 space-y-1.5">
-                          {sortedStatus.map((log) => {
-                            const toMeta = STATUS_META[log.toStatus as TaskStatus];
-                            const isForwardEntry = log.description?.startsWith("Forwarded to user");
-                            const fwdLog = isForwardEntry ? sortedFwd[fwdIdx++] ?? null : null;
-                            return (
-                              <div key={log.id} className="flex items-start gap-1.5 text-[11px] text-slate-400">
-                                <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${toMeta?.dot ?? "bg-slate-300"}`} />
-                                <div className="flex-1 min-w-0 space-y-0.5">
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span className="font-medium text-slate-500">
-                                      {toMeta?.label ?? log.toStatus}
-                                    </span>
-                                    {log.changedBy && (
-                                      <span className="text-slate-400">by {log.changedBy.name}</span>
-                                    )}
-                                    {!isForwardEntry && log.description && (
-                                      <span className="text-slate-400">— {log.description}</span>
-                                    )}
-                                  </div>
-                                  {fwdLog && (
-                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 bg-indigo-50/60 rounded px-1.5 py-0.5">
-                                      <Forward size={9} className="text-indigo-400 flex-shrink-0" />
-                                      <span className="font-medium text-slate-500">{fwdLog.fromUser?.name ?? "—"}</span>
-                                      <span>→</span>
-                                      <span className="font-medium text-slate-500">{fwdLog.toUser?.name ?? "—"}</span>
-                                      {fwdLog.toModule && (
-                                        <span className="px-1 py-0.5 rounded bg-violet-100 text-violet-600 font-semibold">
-                                          {MODULE_LABEL[fwdLog.toModule] ?? fwdLog.toModule}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                                <span className="flex-shrink-0 text-[10px]">
-                                  {fmtDateTime(parseUTC(log.changedAt))}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
                   </div>
 
-                  {/* Status picker: full for admin, restricted for assignee roles, static badge otherwise */}
-                  {isAdmin ? (
-                    <StatusPicker
-                      taskId={task.id}
-                      current={task.status}
-                      onChanged={handleStatusChanged}
-                      onForward={() => openForward(task)}
-                      onAssign={() => openAssign(task)}
-                      forwardedTo={isForwarded ? task.forwardedTo ?? null : null}
-                    />
-                  ) : ["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole) ? (
-                    <StatusPicker
-                      taskId={task.id}
-                      current={task.status}
-                      onChanged={handleStatusChanged}
-                      onForward={() => {}}
-                      onAssign={() => {}}
-                      allowedStatuses={ASSIGNEE_ALLOWED_STATUSES}
-                    />
-                  ) : (
-                    isForwarded ? (
+                  {/* Status picker */}
+                  <div onClick={(e) => e.stopPropagation()}>
+                  {(() => {
+                    const isCreator = task.assigner?.id === meId;
+                    const isPM = task.project?.projectManagerId === meId;
+                    const isAssignee = task.assignees?.some((a) => a.id === meId) ?? false;
+                    const canManage = isAdmin || isCreator || isPM;
+                    if (canManage) {
+                      return (
+                        <StatusPicker
+                          taskId={task.id}
+                          current={task.status}
+                          onChanged={handleStatusChanged}
+                          onForward={isAdmin ? () => openForward(task) : () => { }}
+                          onAssign={isAdmin ? () => openAssign(task) : () => { }}
+                          forwardedTo={isForwarded ? task.forwardedTo ?? null : null}
+                        />
+                      );
+                    }
+                    if (isAssignee || ["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole)) {
+                      return (
+                        <StatusPicker
+                          taskId={task.id}
+                          current={task.status}
+                          onChanged={handleStatusChanged}
+                          onForward={() => { }}
+                          onAssign={() => { }}
+                          allowedStatuses={ASSIGNEE_ALLOWED_STATUSES}
+                        />
+                      );
+                    }
+                    return isForwarded ? (
                       <span className="flex-shrink-0 flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium border bg-indigo-50 text-indigo-700 border-indigo-200">
                         <Forward size={10} />
                         Forwarded to {task.forwardedTo?.name ?? "…"}
@@ -841,16 +823,11 @@ function TasksPageInner() {
                         <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[task.status].dot}`} />
                         {STATUS_META[task.status].label}
                       </span>
-                    )
-                  )}
+                    );
+                  })()}
+                  </div>
 
-                  <button
-                    onClick={() => router.push(`/employee/projects/${task.projectId}`)}
-                    className="flex-shrink-0 text-slate-300 hover:text-slate-500 transition mt-0.5"
-                    title="Open project"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
+                  <ChevronRight size={16} className="flex-shrink-0 text-slate-300 group-hover:text-slate-500 transition mt-0.5" />
                 </motion.div>
               );
             })}
@@ -934,16 +911,50 @@ function TasksPageInner() {
                   <button
                     type="button"
                     onClick={() => setCreateForm((f) => ({ ...f, billable: !f.billable }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      createForm.billable ? "bg-emerald-500" : "bg-slate-200"
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${createForm.billable ? "bg-emerald-500" : "bg-slate-200"
+                      }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                        createForm.billable ? "translate-x-6" : "translate-x-1"
-                      }`}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.billable ? "translate-x-6" : "translate-x-1"
+                        }`}
                     />
                   </button>
+                </div>
+
+                {/* Duration */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Duration
+                  </label>
+                  <div className="flex gap-2">
+                    <Combobox
+                      className="w-1/2"
+                      value={createForm.durationUnit}
+                      onChange={(val) => setCreateForm((f) => ({ ...f, durationUnit: val as "" | "HOUR" | "DAY", durationValue: "" }))}
+                      placeholder="— Unit —"
+                      options={[
+                        { value: "", label: "— Unit —" },
+                        { value: "HOUR", label: "Hour" },
+                        { value: "DAY", label: "Day" },
+                      ]}
+                    />
+                    <Combobox
+                      className="w-1/2"
+                      value={createForm.durationValue}
+                      onChange={(val) => setCreateForm((f) => ({ ...f, durationValue: val }))}
+                      placeholder="— Value —"
+                      disabled={!createForm.durationUnit}
+                      options={[
+                        { value: "", label: "— Value —" },
+                        ...(createForm.durationUnit === "HOUR"
+                          ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24].map((h) => ({ value: String(h), label: h === 0.5 ? "30 mins" : h === 1.5 ? "1.5 hrs" : `${h} hr${h > 1 ? "s" : ""}` }))
+                          : createForm.durationUnit === "DAY"
+                            ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30].map((d) => ({ value: String(d), label: `${d} day${d > 1 ? "s" : ""}` }))
+                            : []
+                        ),
+                      ]}
+                    />
+                  </div>
                 </div>
 
                 {/* SAP Module */}
@@ -1119,11 +1130,10 @@ function TasksPageInner() {
                           <button
                             key={m.value}
                             onClick={() => { setFwdModule(m.value); setFwdUserId(null); setFwdSearch(""); }}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
-                              fwdModule === m.value
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
-                            }`}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${fwdModule === m.value
+                              ? "bg-indigo-600 text-white border-indigo-600"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
+                              }`}
                           >
                             {m.label}
                           </button>
