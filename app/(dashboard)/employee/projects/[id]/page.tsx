@@ -30,14 +30,14 @@ type TaskItem = {
 };
 
 const SAP_MODULES = [
-  { value: "SAP_BTP",  label: "SAP BTP"  },
-  { value: "SAP_MM",   label: "SAP MM"   },
+  { value: "SAP_BTP", label: "SAP BTP" },
+  { value: "SAP_MM", label: "SAP MM" },
   { value: "SAP_FICO", label: "SAP FICO" },
-  { value: "SAP_SF",   label: "SAP SF"   },
-  { value: "SAP_SD",   label: "SAP SD"   },
-  { value: "SAP_HCM",  label: "SAP HCM"  },
+  { value: "SAP_SF", label: "SAP SF" },
+  { value: "SAP_SD", label: "SAP SD" },
+  { value: "SAP_HCM", label: "SAP HCM" },
   { value: "SAP_ABAP", label: "SAP ABAP" },
-  { value: "SAP_PS",   label: "SAP PS"   },
+  { value: "SAP_PS", label: "SAP PS" },
 ] as const;
 
 const MODULE_LABEL: Record<string, string> = Object.fromEntries(
@@ -68,7 +68,7 @@ type Project = {
 };
 
 const PROJECT_TYPES = ["FIXED", "TIME_AND_MATERIAL", "RETAINER", "INTERNAL"] as const;
-const SHIFT_TYPES   = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
+const SHIFT_TYPES = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
 
 const PT_LABELS: Record<string, string> = {
   FIXED: "Fixed Price", TIME_AND_MATERIAL: "Time & Material",
@@ -76,7 +76,7 @@ const PT_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING:  "bg-amber-50 text-amber-700 border-amber-200",
+  PENDING: "bg-amber-50 text-amber-700 border-amber-200",
   APPROVED: "bg-green-50 text-green-700 border-green-200",
   REJECTED: "bg-red-50 text-red-700 border-red-200",
 };
@@ -160,7 +160,7 @@ export default function ProjectDetailPage() {
     } catch (e) { console.error(e); }
   };
 
-  const openPmModal      = async () => { await ensureUsers(); setShowPmModal(true); };
+  const openPmModal = async () => { await ensureUsers(); setShowPmModal(true); };
   const openMembersModal = async () => { await ensureUsers(); setShowMembersModal(true); };
 
   if (loading) return <Loader />;
@@ -224,10 +224,10 @@ export default function ProjectDetailPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <InfoCard icon={<Clock size={16} />}     label="Total Hours" value={`${totalHours}h`} />
-        <InfoCard icon={<Users size={16} />}     label="Members"     value={String(project.members?.length ?? 0)} />
-        <InfoCard icon={<Briefcase size={16} />} label="Timesheets"  value={String(timesheets.length)} />
-        <InfoCard icon={<Calendar size={16} />}  label="Created"     value={project.createdAt ? fmtDateTime(parseUTC(project.createdAt)) : "—"} />
+        <InfoCard icon={<Clock size={16} />} label="Total Hours" value={`${totalHours}h`} />
+        <InfoCard icon={<Users size={16} />} label="Members" value={String(project.members?.length ?? 0)} />
+        <InfoCard icon={<Briefcase size={16} />} label="Timesheets" value={String(timesheets.length)} />
+        <InfoCard icon={<Calendar size={16} />} label="Created" value={project.createdAt ? fmtDateTime(parseUTC(project.createdAt)) : "—"} />
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -242,7 +242,7 @@ export default function ProjectDetailPage() {
             <InfoRow label="Company" value={project.sourceCompany} />
             <InfoRow label="Location" value={project.location} icon={<MapPin size={12} />} />
             <InfoRow label="Start Date" value={fmtDate(project.startDate)} icon={<Calendar size={12} />} />
-            <InfoRow label="End Date"   value={fmtDate(project.endDate)}   icon={<Calendar size={12} />} />
+            <InfoRow label="End Date" value={fmtDate(project.endDate)} icon={<Calendar size={12} />} />
 
             {/* Shift block */}
             {(project.shiftType || project.shiftStartTime || project.shiftEndTime || project.breakTime != null) && (
@@ -390,7 +390,7 @@ export default function ProjectDetailPage() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className={`text-sm font-medium truncate ${done ? "line-through text-slate-400" : "text-slate-900"}`}>{t.name}</p>
+                          <p className={`text-sm font-medium truncate text-slate-900`}>{t.name}</p>
                           {t.module && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 flex-shrink-0">
                               {MODULE_LABEL[t.module] ?? t.module}
@@ -443,8 +443,8 @@ export default function ProjectDetailPage() {
                 {timesheets.map((t) => (
                   <div key={t.id} className="px-5 py-3.5 flex items-center gap-4">
                     <div className="flex-shrink-0 text-center w-10">
-                      <p className="text-lg font-bold text-slate-900 leading-none">{(() => { const [y,m,d] = t.date.split("-").map(Number); return new Date(y,m-1,d).getDate(); })()}</p>
-                      <p className="text-[10px] text-slate-400">{(() => { const [y,m,d] = t.date.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:"short"}); })()}</p>
+                      <p className="text-lg font-bold text-slate-900 leading-none">{(() => { const [y, m, d] = t.date.split("-").map(Number); return new Date(y, m - 1, d).getDate(); })()}</p>
+                      <p className="text-[10px] text-slate-400">{(() => { const [y, m, d] = t.date.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short" }); })()}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">{t.user?.name ?? "—"}</p>
@@ -550,16 +550,16 @@ export default function ProjectDetailPage() {
 function AddTaskModal({ projectId, allUsers, onClose, onSaved }: {
   projectId: number; allUsers: UserOption[]; onClose: () => void; onSaved: () => void;
 }) {
-  const [name, setName]         = useState("");
-  const [module, setModule]     = useState("");
-  const [search, setSearch]     = useState("");
+  const [name, setName] = useState("");
+  const [module, setModule] = useState("");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [saving, setSaving]     = useState(false);
-  const [err, setErr]           = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
 
   /* Filter users by selected module, then by search */
   const moduleUsers = module ? allUsers.filter((u) => u.module === module) : allUsers;
-  const filtered    = moduleUsers.filter((u) =>
+  const filtered = moduleUsers.filter((u) =>
     !search.trim() ||
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
@@ -672,9 +672,9 @@ function TaskAssignModal({ task, users, onClose, onSaved }: {
 }) {
   const currentIds = new Set((task.assignees ?? []).map((a) => a.id));
   const [selected, setSelected] = useState<Set<number>>(new Set(currentIds));
-  const [search, setSearch]     = useState("");
-  const [saving, setSaving]     = useState(false);
-  const [err, setErr]           = useState("");
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
 
   const filtered = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -686,10 +686,10 @@ function TaskAssignModal({ task, users, onClose, onSaved }: {
   const save = async () => {
     setSaving(true); setErr("");
     try {
-      const toAdd    = [...selected].filter((id) => !currentIds.has(id));
+      const toAdd = [...selected].filter((id) => !currentIds.has(id));
       const toRemove = [...currentIds].filter((id) => !selected.has(id));
       await Promise.all([
-        ...toAdd.map((userId)    => apiFetch(`/tasks/${task.id}/assignees`, { method: "POST",   body: JSON.stringify({ userId }) })),
+        ...toAdd.map((userId) => apiFetch(`/tasks/${task.id}/assignees`, { method: "POST", body: JSON.stringify({ userId }) })),
         ...toRemove.map((userId) => apiFetch(`/tasks/${task.id}/assignees/${userId}`, { method: "DELETE" })),
       ]);
       onSaved();
@@ -739,19 +739,19 @@ function EditDetailsModal({ project, onClose, onSaved }: {
   project: Project; onClose: () => void; onSaved: () => void;
 }) {
   const [form, setForm] = useState({
-    name:           project.name ?? "",
-    description:    project.description ?? "",
-    status:         project.status ?? "CREATED",
-    startDate:      project.startDate ?? "",
-    endDate:        project.endDate ?? "",
-    sourceCompany:  project.sourceCompany ?? "",
-    clientName:     project.clientName ?? "",
-    projectType:    project.projectType ?? "",
-    shiftType:      project.shiftType ?? "",
+    name: project.name ?? "",
+    description: project.description ?? "",
+    status: project.status ?? "CREATED",
+    startDate: project.startDate ?? "",
+    endDate: project.endDate ?? "",
+    sourceCompany: project.sourceCompany ?? "",
+    clientName: project.clientName ?? "",
+    projectType: project.projectType ?? "",
+    shiftType: project.shiftType ?? "",
     shiftStartTime: project.shiftStartTime?.slice(0, 5) ?? "",
-    shiftEndTime:   project.shiftEndTime?.slice(0, 5) ?? "",
-    breakTime:      project.breakTime != null ? String(project.breakTime) : "",
-    location:       project.location ?? "",
+    shiftEndTime: project.shiftEndTime?.slice(0, 5) ?? "",
+    breakTime: project.breakTime != null ? String(project.breakTime) : "",
+    location: project.location ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -767,19 +767,19 @@ function EditDetailsModal({ project, onClose, onSaved }: {
     setErr("");
     try {
       const body: Record<string, any> = {
-        name:          form.name.trim(),
-        description:   form.description.trim() || null,
-        status:        form.status,
-        startDate:     form.startDate || null,
-        endDate:       form.endDate || null,
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        status: form.status,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
         sourceCompany: form.sourceCompany.trim() || null,
-        clientName:    form.clientName.trim() || null,
-        projectType:   form.projectType || null,
-        shiftType:     form.shiftType || null,
+        clientName: form.clientName.trim() || null,
+        projectType: form.projectType || null,
+        shiftType: form.shiftType || null,
         shiftStartTime: form.shiftStartTime || null,
-        shiftEndTime:   form.shiftEndTime || null,
-        breakTime:      form.breakTime !== "" ? Number(form.breakTime) : null,
-        location:       form.location.trim() || null,
+        shiftEndTime: form.shiftEndTime || null,
+        breakTime: form.breakTime !== "" ? Number(form.breakTime) : null,
+        location: form.location.trim() || null,
       };
       await apiFetch(`/projects/${project.id}`, { method: "PATCH", body: JSON.stringify(body) });
       onSaved();
@@ -811,9 +811,9 @@ function EditDetailsModal({ project, onClose, onSaved }: {
               <Field label="Status">
                 <Combobox value={form.status} onChange={setField("status")}
                   options={[
-                    { value: "CREATED",   label: "Created"   },
-                    { value: "ACTIVE",    label: "Active"    },
-                    { value: "INACTIVE",  label: "Inactive"  },
+                    { value: "CREATED", label: "Created" },
+                    { value: "ACTIVE", label: "Active" },
+                    { value: "INACTIVE", label: "Inactive" },
                     { value: "COMPLETED", label: "Completed" },
                   ]} />
               </Field>
@@ -976,7 +976,7 @@ function MembersModal({ project, users, onClose, onSaved }: {
         setResp(map);
       })
       .catch(() => redistributeEqual(new Set(currentIds)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Spread 100% equally across the given set of ids */
@@ -984,7 +984,7 @@ function MembersModal({ project, users, onClose, onSaved }: {
     const arr = [...ids];
     if (!arr.length) { setResp({}); return; }
     const each = Math.floor((100 / arr.length) * 10) / 10;
-    const last  = Math.round((100 - each * (arr.length - 1)) * 10) / 10;
+    const last = Math.round((100 - each * (arr.length - 1)) * 10) / 10;
     const map: Record<number, string> = {};
     arr.forEach((id, i) => { map[id] = String(i === arr.length - 1 ? last : each); });
     setResp(map);
@@ -1003,7 +1003,7 @@ function MembersModal({ project, users, onClose, onSaved }: {
     setResp((prev) => ({ ...prev, [id]: val }));
 
   const totalResp = [...selected].reduce((s, id) => s + (parseFloat(resp[id] ?? "0") || 0), 0);
-  const totalOk   = Math.abs(totalResp - 100) < 0.5;
+  const totalOk = Math.abs(totalResp - 100) < 0.5;
 
   const filtered = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -1015,12 +1015,12 @@ function MembersModal({ project, users, onClose, onSaved }: {
   const save = async () => {
     setSaving(true); setErr("");
     try {
-      const toAdd    = [...selected].filter((id) => !currentIds.has(id));
+      const toAdd = [...selected].filter((id) => !currentIds.has(id));
       const toRemove = [...currentIds].filter((id) => !selected.has(id));
 
       /* Add / remove members */
       await Promise.all([
-        ...toAdd.map((userId)    => apiFetch(`/projects/${project.id}/members`, { method: "POST", body: JSON.stringify({ userId }) })),
+        ...toAdd.map((userId) => apiFetch(`/projects/${project.id}/members`, { method: "POST", body: JSON.stringify({ userId }) })),
         ...toRemove.map((userId) => apiFetch(`/projects/${project.id}/members/${userId}`, { method: "DELETE" })),
       ]);
 
@@ -1060,9 +1060,8 @@ function MembersModal({ project, users, onClose, onSaved }: {
                   >
                     ⟳ Equal split
                   </button>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    totalOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-                  }`}>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${totalOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                    }`}>
                     {Math.round(totalResp * 10) / 10}%
                   </span>
                 </div>
@@ -1263,9 +1262,9 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 const PROJECT_STATUS_META: Record<string, { cls: string; label: string }> = {
-  CREATED:   { cls: "bg-blue-50 text-blue-700",    label: "Created"   },
-  ACTIVE:    { cls: "bg-green-100 text-green-700",  label: "Active"    },
-  INACTIVE:  { cls: "bg-slate-100 text-slate-500",  label: "Inactive"  },
+  CREATED: { cls: "bg-blue-50 text-blue-700", label: "Created" },
+  ACTIVE: { cls: "bg-green-100 text-green-700", label: "Active" },
+  INACTIVE: { cls: "bg-slate-100 text-slate-500", label: "Inactive" },
   COMPLETED: { cls: "bg-purple-50 text-purple-700", label: "Completed" },
 };
 

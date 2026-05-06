@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSession } from "next-auth/react";
 import {
   format, startOfWeek, addDays, subDays,
   isSameDay, isAfter, eachDayOfInterval,
@@ -228,6 +229,9 @@ function WeekPicker({
 }
 
 export default function Timesheet() {
+  const { data: session } = useSession();
+  const meId = session?.user?.id ?? null;
+
   const [view, setView] = useState<"weekly" | "daily">("weekly");
   const [projects, setProjects]         = useState<Project[]>([]);
   const [entries, setEntries]           = useState<Entry[]>([]);
@@ -265,17 +269,20 @@ export default function Timesheet() {
     setWeekStart((ws) => addDays(ws, 7));
   };
 
+  /* reset all user-specific state when the logged-in user changes */
   useEffect(() => {
+    if (!meId) return;
+    setEntries([]);
+    taskCache.current = {};
+    setTaskOptions({});
     loadProjects();
     loadLeaves();
-    const token = decodeToken();
-    if (token?.sub) {
-      apiFetch(`/users/${token.sub}`).then((u) => {
-        if (Array.isArray(u?.daysOff)) setDaysOff(u.daysOff);
-      }).catch(() => {});
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { loadEntriesForWeek(weekStart); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
+    apiFetch(`/users/${meId}`).then((u) => {
+      if (Array.isArray(u?.daysOff)) setDaysOff(u.daysOff);
+    }).catch(() => {});
+    loadEntriesForWeek(weekStart);
+  }, [meId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (meId) loadEntriesForWeek(weekStart); }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Set of "yyyy-MM-dd" strings that are blocked due to an approved leave. */
   const blockedDates = useMemo<Set<string>>(() => {
@@ -327,10 +334,11 @@ export default function Timesheet() {
   };
 
   const loadEntriesForWeek = async (ws: Date) => {
+    if (!meId) return;
     try {
       const weekEnd = addDays(ws, 6);
       const res = await apiFetch(
-        `/timesheets?filter=date||$gte||${format(ws, "yyyy-MM-dd")}&filter=date||$lte||${format(weekEnd, "yyyy-MM-dd")}&join=project&join=task&limit=200`
+        `/timesheets?filter=userId||$eq||${meId}&filter=date||$gte||${format(ws, "yyyy-MM-dd")}&filter=date||$lte||${format(weekEnd, "yyyy-MM-dd")}&join=project&join=task&limit=200`
       );
       const list: any[] = Array.isArray(res) ? res : res.data ?? [];
       const fetched: Entry[] = list.map((t) => {
