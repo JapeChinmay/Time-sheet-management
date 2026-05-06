@@ -470,10 +470,10 @@ export default function UserDetailPage() {
           >
             <motion.div
               initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
-              className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl"
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl flex flex-col max-h-[90vh]"
             >
               {/* Header */}
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
                     <Pencil size={14} className="text-white" />
@@ -489,7 +489,7 @@ export default function UserDetailPage() {
               </div>
 
               {/* Body */}
-              <div className="px-6 py-5 space-y-4">
+              <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
                 {/* Name */}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Full Name *</label>
@@ -617,7 +617,7 @@ export default function UserDetailPage() {
               </div>
 
               {/* Footer */}
-              <div className="px-6 pb-5 flex gap-3">
+              <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0">
                 <button
                   onClick={saveProfile}
                   disabled={savingEdit || !editForm.name.trim()}

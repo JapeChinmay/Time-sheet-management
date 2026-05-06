@@ -776,9 +776,7 @@ function TasksPageInner() {
                         <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${isOverdue ? "bg-red-100 text-red-700 border-red-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
                           <Clock size={10} />
                           {task.durationUnit === "HOUR"
-                            ? task.durationValue <= 1
-                              ? `${Math.round(task.durationValue * 60)} mins`
-                              : `${task.durationValue} hrs`
+                            ? task.durationValue === 0.5 ? "30 mins" : task.durationValue === 1.5 ? "1.5 hrs" : `${task.durationValue} hr${task.durationValue > 1 ? "s" : ""}`
                             : `${task.durationValue} day${task.durationValue > 1 ? "s" : ""}`}
                           {isOverdue && <span className="font-bold ml-0.5">· Overdue</span>}
                         </span>
@@ -935,7 +933,11 @@ function TasksPageInner() {
                     <Combobox
                       className="w-1/2"
                       value={createForm.durationUnit}
-                      onChange={(val) => setCreateForm((f) => ({ ...f, durationUnit: val as "" | "HOUR" | "DAY", durationValue: "" }))}
+                      onChange={(val) => setCreateForm((f) => ({
+                        ...f,
+                        durationUnit: val as "" | "HOUR" | "DAY",
+                        durationValue: val === "HOUR" ? "0.5" : val === "DAY" ? "1" : "",
+                      }))}
                       placeholder="— Unit —"
                       options={[
                         { value: "", label: "— Unit —" },
@@ -943,21 +945,16 @@ function TasksPageInner() {
                         { value: "DAY", label: "Day" },
                       ]}
                     />
-                    <Combobox
-                      className="w-1/2"
-                      value={createForm.durationValue}
-                      onChange={(val) => setCreateForm((f) => ({ ...f, durationValue: val }))}
-                      placeholder="— Value —"
+                    <input
+                      type="number"
+                      min={createForm.durationUnit === "HOUR" ? 0.5 : 1}
+                      max={createForm.durationUnit === "HOUR" ? 24 : undefined}
+                      step={createForm.durationUnit === "HOUR" ? 0.5 : 1}
                       disabled={!createForm.durationUnit}
-                      options={[
-                        { value: "", label: "— Value —" },
-                        ...(createForm.durationUnit === "HOUR"
-                          ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24].map((h) => ({ value: String(h), label: h === 0.5 ? "30 mins" : h === 1.5 ? "1.5 hrs" : `${h} hr${h > 1 ? "s" : ""}` }))
-                          : createForm.durationUnit === "DAY"
-                            ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30].map((d) => ({ value: String(d), label: `${d} day${d > 1 ? "s" : ""}` }))
-                            : []
-                        ),
-                      ]}
+                      value={createForm.durationValue}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, durationValue: e.target.value }))}
+                      placeholder="0"
+                      className="w-1/2 border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:opacity-40 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
