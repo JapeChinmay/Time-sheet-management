@@ -774,7 +774,11 @@ function TasksPageInner() {
                       {task.durationUnit && task.durationValue != null && (
                         <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${isOverdue ? "bg-red-100 text-red-700 border-red-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>
                           <Clock size={10} />
-                          {task.durationValue} {task.durationUnit === "HOUR" ? `hr${task.durationValue > 1 ? "s" : ""}` : `day${task.durationValue > 1 ? "s" : ""}`}
+                          {task.durationUnit === "HOUR"
+                            ? task.durationValue <= 1
+                              ? `${Math.round(task.durationValue * 60)} mins`
+                              : `${task.durationValue} hrs`
+                            : `${task.durationValue} day${task.durationValue > 1 ? "s" : ""}`}
                           {isOverdue && <span className="font-bold ml-0.5">· Overdue</span>}
                         </span>
                       )}

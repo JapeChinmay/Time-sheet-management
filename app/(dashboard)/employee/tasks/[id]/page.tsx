@@ -75,9 +75,8 @@ function StatusIcon({ status }: { status: TaskStatus }) {
 function fmtDuration(unit: string | null | undefined, value: number | null | undefined) {
   if (!unit || value == null) return null;
   if (unit === "HOUR") {
-    if (value === 0.5) return "30 mins";
-    if (value === 1.5) return "1.5 hrs";
-    return `${value} hr${value > 1 ? "s" : ""}`;
+    if (value <= 1) return `${Math.round(value * 60)} mins`;
+    return `${value} hrs`;
   }
   return `${value} day${value > 1 ? "s" : ""}`;
 }
