@@ -44,16 +44,68 @@ type Project = {
 
 /* ─── Deterministic card colour palette (full Tailwind strings — never dynamic) ─── */
 const CARD_PALETTE = [
-  { bg: "bg-indigo-50",  border: "border-indigo-200",  icon: "bg-indigo-100  text-indigo-700",  ring: "ring-indigo-200"  },
-  { bg: "bg-violet-50",  border: "border-violet-200",  icon: "bg-violet-100  text-violet-700",  ring: "ring-violet-200"  },
-  { bg: "bg-sky-50",     border: "border-sky-200",     icon: "bg-sky-100     text-sky-700",     ring: "ring-sky-200"     },
-  { bg: "bg-teal-50",    border: "border-teal-200",    icon: "bg-teal-100    text-teal-700",    ring: "ring-teal-200"    },
-  { bg: "bg-emerald-50", border: "border-emerald-200", icon: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-200" },
-  { bg: "bg-rose-50",    border: "border-rose-200",    icon: "bg-rose-100    text-rose-700",    ring: "ring-rose-200"    },
-  { bg: "bg-amber-50",   border: "border-amber-200",   icon: "bg-amber-100   text-amber-700",   ring: "ring-amber-200"   },
-  { bg: "bg-fuchsia-50", border: "border-fuchsia-200", icon: "bg-fuchsia-100 text-fuchsia-700", ring: "ring-fuchsia-200" },
-  { bg: "bg-orange-50",  border: "border-orange-200",  icon: "bg-orange-100  text-orange-700",  ring: "ring-orange-200"  },
-  { bg: "bg-cyan-50",    border: "border-cyan-200",    icon: "bg-cyan-100    text-cyan-700",    ring: "ring-cyan-200"    },
+  {
+    bg: "bg-zinc-50",
+    border: "border-zinc-200",
+    icon: "bg-zinc-100 text-zinc-700",
+    ring: "ring-zinc-200",
+  },
+  {
+    bg: "bg-stone-50",
+    border: "border-stone-200",
+    icon: "bg-stone-100 text-stone-700",
+    ring: "ring-stone-200",
+  },
+  {
+    bg: "bg-neutral-50",
+    border: "border-neutral-200",
+    icon: "bg-neutral-100 text-neutral-700",
+    ring: "ring-neutral-200",
+  },
+  {
+    bg: "bg-slate-50",
+    border: "border-slate-200",
+    icon: "bg-slate-100 text-slate-700",
+    ring: "ring-slate-200",
+  },
+  {
+    bg: "bg-gray-50",
+    border: "border-gray-200",
+    icon: "bg-gray-100 text-gray-700",
+    ring: "ring-gray-200",
+  },
+
+  // subtle premium accents
+  {
+    bg: "bg-blue-50/40",
+    border: "border-blue-100",
+    icon: "bg-blue-100 text-blue-700",
+    ring: "ring-blue-100",
+  },
+  {
+    bg: "bg-emerald-50/40",
+    border: "border-emerald-100",
+    icon: "bg-emerald-100 text-emerald-700",
+    ring: "ring-emerald-100",
+  },
+  {
+    bg: "bg-amber-50/40",
+    border: "border-amber-100",
+    icon: "bg-amber-100 text-amber-700",
+    ring: "ring-amber-100",
+  },
+  {
+    bg: "bg-violet-50/40",
+    border: "border-violet-100",
+    icon: "bg-violet-100 text-violet-700",
+    ring: "ring-violet-100",
+  },
+  {
+    bg: "bg-cyan-50/40",
+    border: "border-cyan-100",
+    icon: "bg-cyan-100 text-cyan-700",
+    ring: "ring-cyan-100",
+  },
 ] as const;
 
 /* Avatar colours — one per member slot so each person looks distinct */
