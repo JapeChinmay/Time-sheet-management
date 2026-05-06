@@ -801,7 +801,7 @@ function TasksPageInner() {
                                   )}
                                 </div>
                                 <span className="flex-shrink-0 text-[10px]">
-                                  {new Date(log.changedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                                  {fmtDate(parseUTC(log.changedAt))}
                                 </span>
                               </div>
                             );

@@ -10,6 +10,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { fmtDateOnly } from "@/lib/date";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 
@@ -64,13 +65,9 @@ const AVATAR_COLORS = [
 ];
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
-function fmtDate(s: string) {
-  return new Date(s + "T00:00:00").toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
-}
+const fmtDate = fmtDateOnly;
 function fmtDateShort(d: Date) {
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
 function fmtMoney(n: number, currencyCode = "INR") {

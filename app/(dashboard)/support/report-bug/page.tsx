@@ -25,6 +25,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { parseUTC, fmtDate as fmtDateLib, timeAgo } from "@/lib/date";
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 type BugStatus = "UNRESOLVED" | "RESOLVED";
@@ -44,23 +45,8 @@ interface BugReport {
 
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function fmtRelative(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+function fmtDate(iso: string) { return fmtDateLib(parseUTC(iso)); }
+function fmtRelative(iso: string) { return timeAgo(parseUTC(iso)); }
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();

@@ -64,38 +64,14 @@ function hoursBarColor(logged: number) {
   return "bg-red-400";
 }
 
-const locationCache = new Map<string, string>();
-async function resolveLocation(lat: number, lng: number): Promise<string> {
-  const key = `${lat},${lng}`;
-  if (locationCache.has(key)) return locationCache.get(key)!;
-  try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-      { headers: { "User-Agent": "timesheet-app" } }
-    );
-    const d = await r.json();
-    const a = d.address ?? {};
-    const parts = [
-      a.road,
-      a.neighbourhood || a.suburb,
-      a.city || a.town || a.village,
-      a.state,
-      a.country,
-    ].filter(Boolean);
-    const loc = parts.length > 0 ? parts.join(", ") : d.display_name || "Unknown";
-    locationCache.set(key, loc);
-    return loc;
-  } catch { return "Unknown"; }
-}
-
 const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-slate-800 text-white",
   ADMIN: "bg-slate-200 text-slate-700",
-  MANAGER:  "bg-teal-100 text-teal-700",
-  HR:       "bg-pink-100 text-pink-700",
+  MANAGER: "bg-teal-100 text-teal-700",
+  HR: "bg-pink-100 text-pink-700",
   INTERNAL: "bg-indigo-100 text-indigo-700",
   EXTERNAL: "bg-violet-100 text-violet-700",
-  INTERN:   "bg-orange-100 text-orange-700",
+  INTERN: "bg-orange-100 text-orange-700",
 };
 
 export default function AdminDashboard() {
@@ -104,7 +80,7 @@ export default function AdminDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [logs, setLogs] = useState<LoginLog[]>([]);
-  const [resolvedLogs, setResolvedLogs] = useState<(LoginLog & { locationName: string })[]>([]);
+  const [resolvedLogs, setResolvedLogs] = useState<(LoginLog & { location: string })[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -124,13 +100,9 @@ export default function AdminDashboard() {
       setLogs(rawLogs);
 
       // Resolve locations in background
-      const resolved = await Promise.all(
+      const resolved :any = await Promise.all(
         rawLogs.map(async (l) => ({
           ...l,
-          locationName:
-            l.location?.latitude && l.location?.longitude
-              ? await resolveLocation(l.location.latitude, l.location.longitude)
-              : "Unknown",
         }))
       );
       setResolvedLogs(resolved);
@@ -319,12 +291,11 @@ export default function AdminDashboard() {
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-sm font-medium text-slate-800 truncate max-w-[160px]">{p.name}</p>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                        p.status === "ACTIVE"    ? "bg-green-100 text-green-700"  :
-                        p.status === "CREATED"   ? "bg-blue-50 text-blue-700"     :
-                        p.status === "COMPLETED" ? "bg-purple-50 text-purple-700" :
-                        "bg-slate-100 text-slate-500"
-                      }`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.status === "ACTIVE" ? "bg-green-100 text-green-700" :
+                        p.status === "CREATED" ? "bg-blue-50 text-blue-700" :
+                          p.status === "COMPLETED" ? "bg-purple-50 text-purple-700" :
+                            "bg-slate-100 text-slate-500"
+                        }`}>
                         {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
                       </span>
                       <span className="text-xs font-semibold text-slate-700">{p.hours}h</span>
@@ -403,7 +374,7 @@ export default function AdminDashboard() {
                     <p className="text-sm font-medium text-slate-900">{log.user?.name ?? log.user?.email ?? "Unknown"}</p>
                     <p className="flex items-start gap-1 text-[11px] text-slate-400 mt-0.5">
                       <MapPin size={10} className="mt-0.5 flex-shrink-0" />
-                      <span>{log.locationName}</span>
+                      <span>{log.location || "Unknown"}</span>
                     </p>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                       {log.browser && (
@@ -435,12 +406,12 @@ export default function AdminDashboard() {
 /* ── Sub-components ── */
 
 const STAT_COLORS: Record<string, string> = {
-  slate:  "bg-slate-100 text-slate-600",
-  green:  "bg-green-100 text-green-600",
-  red:    "bg-red-100 text-red-500",
+  slate: "bg-slate-100 text-slate-600",
+  green: "bg-green-100 text-green-600",
+  red: "bg-red-100 text-red-500",
   indigo: "bg-indigo-100 text-indigo-600",
   violet: "bg-violet-100 text-violet-600",
-  amber:  "bg-amber-100 text-amber-600",
+  amber: "bg-amber-100 text-amber-600",
 };
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: string }) {

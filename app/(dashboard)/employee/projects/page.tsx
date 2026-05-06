@@ -8,6 +8,7 @@ import {
   Search, Users, Briefcase, Clock3, Download,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { fmtDateOnly } from "@/lib/date";
 import { ProjectsGridSkeleton } from "@/components/ui/skeletons";
 import { useSession } from "next-auth/react";
 import Combobox from "@/components/ui/Combobox";
@@ -100,11 +101,7 @@ const EMPTY_FORM = {
   breakTime: "", location: "",
 };
 
-function fmtDate(s: string) {
-  return new Date(s + "T00:00:00").toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
-}
+const fmtDate = fmtDateOnly;
 
 function PMTooltip({
   projectManager,

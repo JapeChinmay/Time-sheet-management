@@ -5,9 +5,10 @@ import { useSession } from "next-auth/react";
 import { setAccessToken } from "@/lib/api";
 
 export function TokenSync() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   useEffect(() => {
+    if (status === "loading") return;          // wait – don't mark ready yet
     setAccessToken((session as any)?.accessToken ?? null);
-  }, [session]);
+  }, [session, status]);
   return null;
 }

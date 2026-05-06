@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
-import { parseUTC } from "@/lib/date";
+import { parseUTC, fmtDateOnly } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Eye, EyeOff, UserPlus, Search, Users } from "lucide-react";
 import Combobox from "@/components/ui/Combobox";
+import DatePicker from "@/components/ui/DatePicker";
 
 type Project = {
   id: number;
@@ -77,7 +78,7 @@ const GENDER_OPTIONS = [
 
 const EMPTY_CREATE = {
   name: "", email: "", password: "", role: "INTERNAL", designation: "", module: "", leavePolicyId: "",
-  gender: "", hrId: "",
+  gender: "", hrId: "", birthdate: "",
   daysOff: ["SATURDAY", "SUNDAY"] as string[],
 };
 
@@ -240,6 +241,7 @@ export default function UsersPage() {
       if (createForm.leavePolicyId) body.leavePolicyId = parseInt(createForm.leavePolicyId);
       if (createForm.gender) body.gender = createForm.gender;
       if (createForm.hrId) body.hrId = parseInt(createForm.hrId);
+      if (createForm.birthdate) body.birthdate = createForm.birthdate;
       body.daysOff = createForm.daysOff;
       await apiFetch("/users", { method: "POST", body: JSON.stringify(body) });
       setShowCreate(false);
@@ -433,7 +435,7 @@ export default function UsersPage() {
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Last active: {u.lastActive ? parseUTC(u.lastActive).toLocaleDateString() : "Never"}</span>
+                  <span>Last active: {u.lastActive ? fmtDateOnly(u.lastActive) : "Never"}</span>
                   <span className="font-medium text-slate-600">{u.totalHours || 0}h total</span>
                 </div>
 
@@ -516,6 +518,16 @@ export default function UsersPage() {
                     onChange={(val) => setCreateForm((f) => ({ ...f, gender: val }))}
                     placeholder="— Not specified —"
                     options={GENDER_OPTIONS}
+                  />
+                </div>
+
+                {/* Birthdate */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Date of Birth <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <DatePicker
+                    value={createForm.birthdate}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, birthdate: val }))}
+                    placeholder="Select date of birth"
                   />
                 </div>
 

@@ -14,7 +14,7 @@ import { apiFetch } from "@/lib/api";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
 import TimePicker from "@/components/ui/TimePicker";
-import { parseUTC, fmtDate as fmtDateUTC } from "@/lib/date";
+import { parseUTC, fmtDate as fmtDateUTC, fmtDateOnly } from "@/lib/date";
 
 type UserOption = { id: number; name: string; email: string; role: string; designation?: string; module?: string | null };
 type Member = UserOption;
@@ -175,8 +175,7 @@ export default function ProjectDetailPage() {
   }
 
   const totalHours = timesheets.reduce((s, t) => s + t.hours, 0);
-  const fmtDate = (d?: string | null) =>
-    d ? format(new Date(d), "dd MMM yyyy") : "—";
+  const fmtDate = (d?: string | null) => fmtDateOnly(d);
   const fmtTime = (t?: string | null) => {
     if (!t) return "—";
     const [h, m] = t.split(":");
@@ -444,8 +443,8 @@ export default function ProjectDetailPage() {
                 {timesheets.map((t) => (
                   <div key={t.id} className="px-5 py-3.5 flex items-center gap-4">
                     <div className="flex-shrink-0 text-center w-10">
-                      <p className="text-lg font-bold text-slate-900 leading-none">{format(new Date(t.date), "d")}</p>
-                      <p className="text-[10px] text-slate-400">{format(new Date(t.date), "MMM")}</p>
+                      <p className="text-lg font-bold text-slate-900 leading-none">{(() => { const [y,m,d] = t.date.split("-").map(Number); return new Date(y,m-1,d).getDate(); })()}</p>
+                      <p className="text-[10px] text-slate-400">{(() => { const [y,m,d] = t.date.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:"short"}); })()}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">{t.user?.name ?? "—"}</p>

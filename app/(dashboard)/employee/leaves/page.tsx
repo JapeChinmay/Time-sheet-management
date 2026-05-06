@@ -8,6 +8,7 @@ import {
   AlertCircle, Trash2, ChevronDown, Users, Info, Banknote,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { fmtDateOnly } from "@/lib/date";
 import { LeavesSkeleton } from "@/components/ui/skeletons";
 import DatePicker from "@/components/ui/DatePicker";
 
@@ -141,9 +142,7 @@ function countDays(start: string, end: string) {
   return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
 }
 
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
+const fmtDate = fmtDateOnly;
 
 
 const INPUT = "w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white";
@@ -389,8 +388,8 @@ export default function LeavesPage() {
               >
                 {/* Date block */}
                 <div className="shrink-0 w-14 text-center bg-slate-50 border border-slate-200 rounded-lg py-2">
-                  <p className="text-xs text-slate-400 leading-none">{new Date(l.startDate).toLocaleDateString("en-IN", { month: "short" })}</p>
-                  <p className="text-xl font-bold text-slate-900 leading-tight">{new Date(l.startDate).getDate()}</p>
+                  <p className="text-xs text-slate-400 leading-none">{(() => { const [y,m,d] = l.startDate.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:"short"}); })()}</p>
+                  <p className="text-xl font-bold text-slate-900 leading-tight">{(() => { const [y,m,d] = l.startDate.split("-").map(Number); return new Date(y,m-1,d).getDate(); })()}</p>
                 </div>
 
                 {/* Content */}
