@@ -25,7 +25,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { parseUTC, fmtDate as fmtDateLib, timeAgo } from "@/lib/date";
+import { parseUTC, fmtDateTime, timeAgo } from "@/lib/date";
 
 /* ─── Types ──────────────────────────────────────────────────────────── */
 type BugStatus = "UNRESOLVED" | "RESOLVED";
@@ -45,7 +45,7 @@ interface BugReport {
 
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
 
-function fmtDate(iso: string) { return fmtDateLib(parseUTC(iso)); }
+function fmtDate(iso: string) { return fmtDateTime(parseUTC(iso)); }
 function fmtRelative(iso: string) { return timeAgo(parseUTC(iso)); }
 
 function initials(name: string) {

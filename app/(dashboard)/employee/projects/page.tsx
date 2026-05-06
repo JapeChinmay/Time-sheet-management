@@ -44,41 +44,93 @@ type Project = {
 
 /* ─── Deterministic card colour palette (full Tailwind strings — never dynamic) ─── */
 const CARD_PALETTE = [
-  { bg: "bg-indigo-50",  border: "border-indigo-200",  icon: "bg-indigo-100  text-indigo-700",  ring: "ring-indigo-200"  },
-  { bg: "bg-violet-50",  border: "border-violet-200",  icon: "bg-violet-100  text-violet-700",  ring: "ring-violet-200"  },
-  { bg: "bg-sky-50",     border: "border-sky-200",     icon: "bg-sky-100     text-sky-700",     ring: "ring-sky-200"     },
-  { bg: "bg-teal-50",    border: "border-teal-200",    icon: "bg-teal-100    text-teal-700",    ring: "ring-teal-200"    },
-  { bg: "bg-emerald-50", border: "border-emerald-200", icon: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-200" },
-  { bg: "bg-rose-50",    border: "border-rose-200",    icon: "bg-rose-100    text-rose-700",    ring: "ring-rose-200"    },
-  { bg: "bg-amber-50",   border: "border-amber-200",   icon: "bg-amber-100   text-amber-700",   ring: "ring-amber-200"   },
-  { bg: "bg-fuchsia-50", border: "border-fuchsia-200", icon: "bg-fuchsia-100 text-fuchsia-700", ring: "ring-fuchsia-200" },
-  { bg: "bg-orange-50",  border: "border-orange-200",  icon: "bg-orange-100  text-orange-700",  ring: "ring-orange-200"  },
-  { bg: "bg-cyan-50",    border: "border-cyan-200",    icon: "bg-cyan-100    text-cyan-700",    ring: "ring-cyan-200"    },
+  {
+    bg: "bg-zinc-50",
+    border: "border-zinc-200",
+    icon: "bg-zinc-100 text-zinc-700",
+    ring: "ring-zinc-200",
+  },
+  {
+    bg: "bg-stone-50",
+    border: "border-stone-200",
+    icon: "bg-stone-100 text-stone-700",
+    ring: "ring-stone-200",
+  },
+  {
+    bg: "bg-neutral-50",
+    border: "border-neutral-200",
+    icon: "bg-neutral-100 text-neutral-700",
+    ring: "ring-neutral-200",
+  },
+  {
+    bg: "bg-slate-50",
+    border: "border-slate-200",
+    icon: "bg-slate-100 text-slate-700",
+    ring: "ring-slate-200",
+  },
+  {
+    bg: "bg-gray-50",
+    border: "border-gray-200",
+    icon: "bg-gray-100 text-gray-700",
+    ring: "ring-gray-200",
+  },
+
+  // subtle premium accents
+  {
+    bg: "bg-blue-50/40",
+    border: "border-blue-100",
+    icon: "bg-blue-100 text-blue-700",
+    ring: "ring-blue-100",
+  },
+  {
+    bg: "bg-emerald-50/40",
+    border: "border-emerald-100",
+    icon: "bg-emerald-100 text-emerald-700",
+    ring: "ring-emerald-100",
+  },
+  {
+    bg: "bg-amber-50/40",
+    border: "border-amber-100",
+    icon: "bg-amber-100 text-amber-700",
+    ring: "ring-amber-100",
+  },
+  {
+    bg: "bg-violet-50/40",
+    border: "border-violet-100",
+    icon: "bg-violet-100 text-violet-700",
+    ring: "ring-violet-100",
+  },
+  {
+    bg: "bg-cyan-50/40",
+    border: "border-cyan-100",
+    icon: "bg-cyan-100 text-cyan-700",
+    ring: "ring-cyan-100",
+  },
 ] as const;
 
 /* Avatar colours — one per member slot so each person looks distinct */
 const AVATAR_COLORS = [
-  "bg-indigo-500", "bg-violet-500", "bg-sky-500",     "bg-teal-500",
-  "bg-emerald-500","bg-rose-500",   "bg-amber-500",   "bg-fuchsia-500",
-  "bg-orange-500", "bg-cyan-500",   "bg-pink-500",    "bg-purple-500",
+  "bg-indigo-500", "bg-violet-500", "bg-sky-500", "bg-teal-500",
+  "bg-emerald-500", "bg-rose-500", "bg-amber-500", "bg-fuchsia-500",
+  "bg-orange-500", "bg-cyan-500", "bg-pink-500", "bg-purple-500",
 ] as const;
 
 const PT_LABELS: Record<string, string> = {
-  IMPLEMENTATION_GREENFIELD:  "Implementation (Greenfield)",
-  MIGRATION_BROWNFIELD:       "Migration / System Conversion (Brownfield)",
-  ROLLOUT:                    "Rollout",
-  SUPPORT_MAINTENANCE:        "Support and Maintenance (AMS)",
-  UPGRADE_ENHANCEMENT:        "Upgrade / Enhancement",
-  LANDSCAPE_TRANSFORMATION:   "Landscape Transformation (Carve-outs)",
-  PROOF_OF_CONCEPT:           "Proof of Concept (PoC) / Prototyping",
-  INTEGRATION_INTERFACE:      "Integration / Interface Projects",
-  CUSTOM_DEVELOPMENT:         "Custom Development (Side-by-Side Extensibility)",
-  DATA_ARCHIVING_CLEANSING:   "Data Archiving & Data Cleansing",
+  IMPLEMENTATION_GREENFIELD: "Implementation (Greenfield)",
+  MIGRATION_BROWNFIELD: "Migration / System Conversion (Brownfield)",
+  ROLLOUT: "Rollout",
+  SUPPORT_MAINTENANCE: "Support and Maintenance (AMS)",
+  UPGRADE_ENHANCEMENT: "Upgrade / Enhancement",
+  LANDSCAPE_TRANSFORMATION: "Landscape Transformation (Carve-outs)",
+  PROOF_OF_CONCEPT: "Proof of Concept (PoC) / Prototyping",
+  INTEGRATION_INTERFACE: "Integration / Interface Projects",
+  CUSTOM_DEVELOPMENT: "Custom Development (Side-by-Side Extensibility)",
+  DATA_ARCHIVING_CLEANSING: "Data Archiving & Data Cleansing",
   SECURITY_AUTHORIZATION_GRC: "Security and Authorization (GRC) Projects",
-  CLOUD_HOSTING_MIGRATION:    "Cloud Hosting Migration (Lift and Shift)",
+  CLOUD_HOSTING_MIGRATION: "Cloud Hosting Migration (Lift and Shift)",
 };
 
-const SHIFT_TYPES   = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
+const SHIFT_TYPES = ["MORNING", "AFTERNOON", "NIGHT", "FLEXIBLE"] as const;
 const PROJECT_TYPES = [
   "IMPLEMENTATION_GREENFIELD",
   "MIGRATION_BROWNFIELD",
@@ -117,14 +169,13 @@ function PMTooltip({
       onMouseLeave={() => setOpen(false)}
     >
       {/* Avatar */}
-        <span className="text-[10px] font-semibold text-slate-500">
-    Project Manager
-  </span>
+      <span className="text-[10px] font-semibold text-slate-500">
+        Project Manager
+      </span>
 
       <div
-        className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${
-          AVATAR_COLORS[(projectManager.id ?? 0) % AVATAR_COLORS.length]
-        }`}
+        className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${AVATAR_COLORS[(projectManager.id ?? 0) % AVATAR_COLORS.length]
+          }`}
       >
         {projectManager.name[0]?.toUpperCase()}
       </div>
@@ -168,15 +219,15 @@ function PMTooltip({
 export default function ProjectsPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const [projects,    setProjects]    = useState<Project[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState("");
-  const [showCreate,  setShowCreate]  = useState(false);
-  const [creating,    setCreating]    = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
-  const [form,        setForm]        = useState(EMPTY_FORM);
-  const [search,      setSearch]      = useState("");
-  const [statusFilter,setStatusFilter]= useState<"ALL" | "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED">("ALL");
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED">("ALL");
 
   const loadProjects = async () => {
     try {
@@ -207,7 +258,7 @@ export default function ProjectsPage() {
     });
   }, [projects, search, statusFilter]);
 
-  const set      = (k: keyof typeof EMPTY_FORM) =>
+  const set = (k: keyof typeof EMPTY_FORM) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
   const setField = (k: keyof typeof EMPTY_FORM) => (val: string) =>
@@ -218,18 +269,18 @@ export default function ProjectsPage() {
     setCreating(true); setCreateError("");
     try {
       const body: Record<string, any> = { name: form.name.trim() };
-      if (form.description.trim())   body.description    = form.description.trim();
-      if (form.status)               body.status         = form.status;
-      if (form.startDate)            body.startDate      = form.startDate;
-      if (form.endDate)              body.endDate        = form.endDate;
-      if (form.sourceCompany.trim()) body.sourceCompany  = form.sourceCompany.trim();
-      if (form.clientName.trim())    body.clientName     = form.clientName.trim();
-      if (form.projectType)          body.projectType    = form.projectType;
-      if (form.shiftType)            body.shiftType      = form.shiftType;
-      if (form.shiftStartTime)       body.shiftStartTime = form.shiftStartTime;
-      if (form.shiftEndTime)         body.shiftEndTime   = form.shiftEndTime;
-      if (form.breakTime !== "")     body.breakTime      = Number(form.breakTime);
-      if (form.location.trim())      body.location       = form.location.trim();
+      if (form.description.trim()) body.description = form.description.trim();
+      if (form.status) body.status = form.status;
+      if (form.startDate) body.startDate = form.startDate;
+      if (form.endDate) body.endDate = form.endDate;
+      if (form.sourceCompany.trim()) body.sourceCompany = form.sourceCompany.trim();
+      if (form.clientName.trim()) body.clientName = form.clientName.trim();
+      if (form.projectType) body.projectType = form.projectType;
+      if (form.shiftType) body.shiftType = form.shiftType;
+      if (form.shiftStartTime) body.shiftStartTime = form.shiftStartTime;
+      if (form.shiftEndTime) body.shiftEndTime = form.shiftEndTime;
+      if (form.breakTime !== "") body.breakTime = Number(form.breakTime);
+      if (form.location.trim()) body.location = form.location.trim();
 
       await apiFetch("/projects", { method: "POST", body: JSON.stringify(body) });
       setForm(EMPTY_FORM);
@@ -245,15 +296,15 @@ export default function ProjectsPage() {
   const openExportPage = () => router.push("/employee/projects/export");
 
   if (loading) return <ProjectsGridSkeleton />;
-  if (error)   return <p className="text-red-500 p-4">{error}</p>;
+  if (error) return <p className="text-red-500 p-4">{error}</p>;
 
-  const callerRole        = session?.user?.role ?? "";
+  const callerRole = session?.user?.role ?? "";
   const canManageProjects = !["INTERNAL", "EXTERNAL", "INTERN"].includes(callerRole);
-  const canExport         = ["ADMIN", "SUPERADMIN"].includes(callerRole);
+  const canExport = ["ADMIN", "SUPERADMIN"].includes(callerRole);
 
-  const createdCount   = projects.filter(p => p.status === "CREATED").length;
-  const activeCount    = projects.filter(p => p.status === "ACTIVE").length;
-  const inactiveCount  = projects.filter(p => p.status === "INACTIVE").length;
+  const createdCount = projects.filter(p => p.status === "CREATED").length;
+  const activeCount = projects.filter(p => p.status === "ACTIVE").length;
+  const inactiveCount = projects.filter(p => p.status === "INACTIVE").length;
   const completedCount = projects.filter(p => p.status === "COMPLETED").length;
 
   return (
@@ -303,33 +354,32 @@ export default function ProjectsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search projects, clients…"
             className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
-          /> 
+          />
         </div>
 
         {/* Status pills */}
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-wrap">
           {(["ALL", "CREATED", "ACTIVE", "INACTIVE", "COMPLETED"] as const).map((s) => {
             const count =
-              s === "ALL"       ? projects.length :
-              s === "CREATED"   ? createdCount :
-              s === "ACTIVE"    ? activeCount :
-              s === "INACTIVE"  ? inactiveCount :
-              completedCount;
+              s === "ALL" ? projects.length :
+                s === "CREATED" ? createdCount :
+                  s === "ACTIVE" ? activeCount :
+                    s === "INACTIVE" ? inactiveCount :
+                      completedCount;
             const label =
-              s === "ALL"       ? "All" :
-              s === "CREATED"   ? "Created" :
-              s === "ACTIVE"    ? "Active" :
-              s === "INACTIVE"  ? "Inactive" :
-              "Completed";
+              s === "ALL" ? "All" :
+                s === "CREATED" ? "Created" :
+                  s === "ACTIVE" ? "Active" :
+                    s === "INACTIVE" ? "Inactive" :
+                      "Completed";
             return (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition ${
-                  statusFilter === s
+                className={`px-3 py-1 text-xs font-medium rounded-md transition ${statusFilter === s
                     ? "bg-white text-slate-900 shadow"
                     : "text-slate-500 hover:text-slate-700"
-                }`}
+                  }`}
               >
                 {label} ({count})
               </button>
@@ -513,16 +563,16 @@ function ProjectCard({
   index: number;
   onClick: () => void;
 }) {
-  const members    = p.members ?? [];
-  const visible    = members.slice(0, 4);
-  const overflow   = members.length - 4;
+  const members = p.members ?? [];
+  const visible = members.slice(0, 4);
+  const overflow = members.length - 4;
 
   /* shift info label */
   const shiftLabel = p.shiftStartTime && p.shiftEndTime
     ? `${p.shiftStartTime.slice(0, 5)} – ${p.shiftEndTime.slice(0, 5)}`
     : p.shiftType
-    ? p.shiftType.charAt(0) + p.shiftType.slice(1).toLowerCase()
-    : null;
+      ? p.shiftType.charAt(0) + p.shiftType.slice(1).toLowerCase()
+      : null;
 
   return (
     <motion.div
@@ -638,14 +688,14 @@ function ProjectCard({
           </div>
 
           {/* PM chip */}
-      {/* PM chip */}
-{p.projectManager ? (
-  <PMTooltip projectManager={p.projectManager} />
-) : (
-  <span className="text-[11px] text-slate-300 italic flex-shrink-0">
-    No PM
-  </span>
-)}
+          {/* PM chip */}
+          {p.projectManager ? (
+            <PMTooltip projectManager={p.projectManager} />
+          ) : (
+            <span className="text-[11px] text-slate-300 italic flex-shrink-0">
+              No PM
+            </span>
+          )}
         </div>
 
       </div>
@@ -723,10 +773,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const STATUS_BADGE_STYLES: Record<string, { cls: string; dot: string; label: string }> = {
-  CREATED:   { cls: "bg-blue-50 text-blue-700",    dot: "bg-blue-400",    label: "Created"   },
-  ACTIVE:    { cls: "bg-green-100 text-green-700",  dot: "bg-green-500",   label: "Active"    },
-  INACTIVE:  { cls: "bg-slate-100 text-slate-500",  dot: "bg-slate-400",   label: "Inactive"  },
-  COMPLETED: { cls: "bg-purple-50 text-purple-700", dot: "bg-purple-400",  label: "Completed" },
+  CREATED: { cls: "bg-blue-50 text-blue-700", dot: "bg-blue-400", label: "Created" },
+  ACTIVE: { cls: "bg-green-100 text-green-700", dot: "bg-green-500", label: "Active" },
+  INACTIVE: { cls: "bg-slate-100 text-slate-500", dot: "bg-slate-400", label: "Inactive" },
+  COMPLETED: { cls: "bg-purple-50 text-purple-700", dot: "bg-purple-400", label: "Completed" },
 };
 
 function StatusBadge({ status }: { status: string }) {

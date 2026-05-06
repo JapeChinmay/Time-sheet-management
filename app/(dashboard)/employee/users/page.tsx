@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
-import { parseUTC, fmtDateOnly } from "@/lib/date";
+import { parseUTC, fmtDateOnly, fmtDateTime } from "@/lib/date";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Eye, EyeOff, UserPlus, Search, Users } from "lucide-react";
@@ -91,6 +91,7 @@ type User = {
   email: string;
   role: string;
   module?: string | null;
+  createdAt?: string | null;
   lastActive?: string | null;
   projectId?: number | null;
   totalHours?: number;
@@ -438,6 +439,12 @@ export default function UsersPage() {
                   <span>Last active: {u.lastActive ? fmtDateOnly(u.lastActive) : "Never"}</span>
                   <span className="font-medium text-slate-600">{u.totalHours || 0}h total</span>
                 </div>
+
+                {u.createdAt && (
+                  <div className="text-xs text-slate-400">
+                    Joined: <span className="text-slate-500">{fmtDateTime(parseUTC(u.createdAt))}</span>
+                  </div>
+                )}
 
                 <p className="text-xs text-indigo-600 font-medium">View analytics →</p>
 

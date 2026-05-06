@@ -16,14 +16,17 @@ import DatePicker from "@/components/ui/DatePicker";
 function addCalendarDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /* ── types ── */
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
-  | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+  | "MATERNITY" | "PATERNITY" | "COMPENSATORY" | "HALF_DAY";
 
 type LeaveApproval = {
   id: number;
@@ -57,29 +60,31 @@ type Leave = {
 
 /* ── constants ── */
 const LEAVE_TYPES: { value: LeaveType; label: string }[] = [
-  { value: "SICK",         label: "Sick Leave"        },
-  { value: "CASUAL",       label: "Casual Leave"      },
-  { value: "EARNED",       label: "Earned Leave"      },
-  { value: "UNPAID",       label: "Unpaid Leave"      },
-  { value: "MATERNITY",    label: "Maternity Leave"   },
-  { value: "PATERNITY",    label: "Paternity Leave"   },
-  { value: "COMPENSATORY", label: "Compensatory Leave"},
+  { value: "SICK", label: "Sick Leave" },
+  { value: "CASUAL", label: "Casual Leave" },
+  { value: "EARNED", label: "Earned Leave" },
+  { value: "HALF_DAY", label: "Half Day Leave" },
+  { value: "UNPAID", label: "Unpaid Leave" },
+  { value: "MATERNITY", label: "Maternity Leave" },
+  { value: "PATERNITY", label: "Paternity Leave" },
+  { value: "COMPENSATORY", label: "Compensatory Leave" },
 ];
 
 const TYPE_COLORS: Record<LeaveType, string> = {
-  SICK:         "bg-rose-100 text-rose-700",
-  CASUAL:       "bg-blue-100 text-blue-700",
-  EARNED:       "bg-emerald-100 text-emerald-700",
-  UNPAID:       "bg-slate-100 text-slate-600",
-  MATERNITY:    "bg-pink-100 text-pink-700",
-  PATERNITY:    "bg-indigo-100 text-indigo-700",
+  SICK: "bg-rose-100 text-rose-700",
+  CASUAL: "bg-blue-100 text-blue-700",
+  EARNED: "bg-emerald-100 text-emerald-700",
+  HALF_DAY: "bg-cyan-100 text-cyan-700",
+  UNPAID: "bg-slate-100 text-slate-600",
+  MATERNITY: "bg-pink-100 text-pink-700",
+  PATERNITY: "bg-indigo-100 text-indigo-700",
   COMPENSATORY: "bg-amber-100 text-amber-700",
 };
 
 const STATUS_STYLES: Record<LeaveStatus, { pill: string; icon: React.ReactNode; label: string }> = {
-  PENDING:  { pill: "bg-amber-50 text-amber-700 border-amber-200",  icon: <Clock size={12} />,        label: "Pending"  },
-  APPROVED: { pill: "bg-green-50 text-green-700 border-green-200",  icon: <CheckCircle2 size={12} />, label: "Approved" },
-  REJECTED: { pill: "bg-red-50   text-red-600   border-red-200",    icon: <XCircle size={12} />,      label: "Rejected" },
+  PENDING: { pill: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock size={12} />, label: "Pending" },
+  APPROVED: { pill: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={12} />, label: "Approved" },
+  REJECTED: { pill: "bg-red-50   text-red-600   border-red-200", icon: <XCircle size={12} />, label: "Rejected" },
 };
 
 const EMPTY_FORM = { type: "CASUAL" as LeaveType, startDate: "", endDate: "", reason: "" };
@@ -90,55 +95,50 @@ function ApprovalProgress({ approvals }: { approvals?: LeaveApproval[] }) {
   const isHR = (a: LeaveApproval) =>
     a.approver?.role === "HR" || a.approver?.role === "hr";
 
-  const hrApprovals  = approvals.filter(isHR);
+  const hrApprovals = approvals.filter(isHR);
   const mgmtApprovals = approvals.filter((a) => !isHR(a));
 
-  const statusChip = (a: LeaveApproval) => (
-    <span
-      key={a.id}
-      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
-        a.status === "APPROVED" ? "bg-green-100 text-green-700"
-        : a.status === "REJECTED" ? "bg-red-100 text-red-600"
-        : "bg-amber-100 text-amber-600"
-      }`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-        a.status === "APPROVED" ? "bg-green-500"
-        : a.status === "REJECTED" ? "bg-red-500"
-        : "bg-amber-400"
-      }`} />
-      {a.approver?.name ?? "Unknown"} · {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
-    </span>
+  const approvalRow = (a: LeaveApproval) => (
+    <div key={a.id} className="flex items-start gap-2">
+      <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${a.status === "APPROVED" ? "bg-green-500"
+          : a.status === "REJECTED" ? "bg-red-500"
+            : "bg-amber-400"
+        }`} />
+      <div className="min-w-0">
+        <span className={`text-[11px] font-medium ${a.status === "APPROVED" ? "text-green-700"
+            : a.status === "REJECTED" ? "text-red-600"
+              : "text-amber-600"
+          }`}>
+          {a.approver?.name ?? "Unknown"} — {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
+        </span>
+        {a.reviewNote && (
+          <p className="text-[11px] text-slate-400 italic mt-0.5">"{a.reviewNote}"</p>
+        )}
+      </div>
+    </div>
   );
 
   return (
-    <div className="mt-2 space-y-1.5">
+    <div className="mt-2 space-y-2">
       {mgmtApprovals.length > 0 && (
-        <div className="flex items-start gap-2 flex-wrap">
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-14 pt-0.5 shrink-0">
-            Manager
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {mgmtApprovals.map(statusChip)}
-          </div>
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Manager</span>
+          {mgmtApprovals.map(approvalRow)}
         </div>
       )}
       {hrApprovals.length > 0 && (
-        <div className="flex items-start gap-2 flex-wrap">
-          <span className="text-[10px] font-semibold text-pink-400 uppercase tracking-wide w-14 pt-0.5 shrink-0">
-            HR
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {hrApprovals.map(statusChip)}
-          </div>
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-pink-400 uppercase tracking-wide">HR</span>
+          {hrApprovals.map(approvalRow)}
         </div>
       )}
     </div>
   );
 }
 
-function countDays(start: string, end: string) {
+function countDays(start: string, end: string, type?: LeaveType) {
   if (!start || !end) return 0;
+  if (type === "HALF_DAY") return 0.5;
   return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
 }
 
@@ -149,20 +149,20 @@ const INPUT = "w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm foc
 
 /* ════════════════════════════════════════════════════════════════════════ */
 export default function LeavesPage() {
-  const [leaves, setLeaves]       = useState<Leave[]>([]);
-  const [quota, setQuota]         = useState<Quota | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState("");
+  const [leaves, setLeaves] = useState<Leave[]>([]);
+  const [quota, setQuota] = useState<Quota | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | LeaveStatus>("ALL");
 
   /* apply modal */
-  const [showApply, setShowApply]   = useState(false);
-  const [form, setForm]             = useState(EMPTY_FORM);
-  const [applying, setApplying]     = useState(false);
-  const [applyErr, setApplyErr]     = useState("");
+  const [showApply, setShowApply] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [applying, setApplying] = useState(false);
+  const [applyErr, setApplyErr] = useState("");
 
   /* cancel confirm */
-  const [cancelId, setCancelId]     = useState<number | null>(null);
+  const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
   const { data: session } = useSession();
@@ -183,15 +183,19 @@ export default function LeavesPage() {
 
   const applyLeave = async () => {
     if (!form.startDate) { setApplyErr("Start date is required."); return; }
-    if (!form.endDate)   { setApplyErr("End date is required."); return; }
-    if (new Date(form.endDate) < new Date(form.startDate)) { setApplyErr("End date must be after start date."); return; }
+
+    // half day: force endDate = startDate
+    const effectiveEndDate = form.type === "HALF_DAY" ? form.startDate : form.endDate;
+
+    if (!effectiveEndDate) { setApplyErr("End date is required."); return; }
+    if (new Date(effectiveEndDate) < new Date(form.startDate)) { setApplyErr("End date must be after start date."); return; }
     if (form.reason.trim().length < 5) { setApplyErr("Reason must be at least 5 characters."); return; }
 
-    const totalDays   = countDays(form.startDate, form.endDate);
-    const remaining   = Math.max(0, quota?.remainingThisMonth ?? Infinity);
-    const hasSplit    = quota?.hasPolicy && form.type !== "UNPAID" && totalDays > remaining;
-    const paidDays    = hasSplit ? Math.floor(Math.min(totalDays, remaining)) : totalDays;
-    const unpaidDays  = hasSplit ? totalDays - paidDays : 0;
+    const totalDays = countDays(form.startDate, effectiveEndDate, form.type);
+    const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
+    const hasSplit = quota?.hasPolicy && form.type !== "UNPAID" && totalDays > remaining;
+    const paidDays = hasSplit ? Math.floor(Math.min(totalDays, remaining)) : totalDays;
+    const unpaidDays = hasSplit ? totalDays - paidDays : 0;
 
     setApplying(true); setApplyErr("");
     try {
@@ -199,22 +203,22 @@ export default function LeavesPage() {
 
       if (!hasSplit) {
         /* Normal submit — all days within quota OR already UNPAID type */
-        const leaveType = (quota?.hasPolicy && remaining <= 0 && form.type !== "UNPAID") ? "UNPAID" as const : form.type;
+        const leaveType = (quota?.hasPolicy && remaining <= 0 && form.type !== "UNPAID" && form.type !== "HALF_DAY") ? "UNPAID" as const : form.type;
         const res = await apiFetch("/leaves", {
           method: "POST",
-          body: JSON.stringify({ type: leaveType, startDate: form.startDate, endDate: form.endDate, reason }),
+          body: JSON.stringify({ type: leaveType, startDate: form.startDate, endDate: effectiveEndDate, reason }),
         });
         setLeaves((prev) => [res, ...prev]);
       } else if (paidDays === 0) {
         /* All days are beyond quota — submit entirely as UNPAID */
         const res = await apiFetch("/leaves", {
           method: "POST",
-          body: JSON.stringify({ type: "UNPAID", startDate: form.startDate, endDate: form.endDate, reason }),
+          body: JSON.stringify({ type: "UNPAID", startDate: form.startDate, endDate: effectiveEndDate, reason }),
         });
         setLeaves((prev) => [res, ...prev]);
       } else {
         /* Split: paid portion + unpaid overflow submitted as two requests */
-        const paidEnd     = addCalendarDays(form.startDate, paidDays - 1);
+        const paidEnd = addCalendarDays(form.startDate, paidDays - 1);
         const unpaidStart = addCalendarDays(form.startDate, paidDays);
 
         const [paidRes, unpaidRes] = await Promise.all([
@@ -224,7 +228,7 @@ export default function LeavesPage() {
           }),
           apiFetch("/leaves", {
             method: "POST",
-            body: JSON.stringify({ type: "UNPAID", startDate: unpaidStart, endDate: form.endDate, reason }),
+            body: JSON.stringify({ type: "UNPAID", startDate: unpaidStart, endDate: effectiveEndDate, reason }),
           }),
         ]);
         /* Newest first */
@@ -259,7 +263,7 @@ export default function LeavesPage() {
     : leaves.filter((l) => l.status === statusFilter);
 
   /* summary counts */
-  const pending  = leaves.filter((l) => l.status === "PENDING").length;
+  const pending = leaves.filter((l) => l.status === "PENDING").length;
   const approved = leaves.filter((l) => l.status === "APPROVED").length;
   const rejected = leaves.filter((l) => l.status === "REJECTED").length;
   const totalDays = leaves
@@ -267,7 +271,7 @@ export default function LeavesPage() {
     .reduce((s, l) => s + countDays(l.startDate, l.endDate), 0);
 
   if (loading) return <LeavesSkeleton />;
-  if (error)   return <p className="text-red-500 p-4">{error}</p>;
+  if (error) return <p className="text-red-500 p-4">{error}</p>;
 
   return (
     <div className="space-y-6">
@@ -290,9 +294,9 @@ export default function LeavesPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Approved Days", value: totalDays, color: "bg-emerald-50 text-emerald-700", icon: <CheckCircle2 size={16} /> },
-          { label: "Pending",  value: pending,  color: "bg-amber-50 text-amber-700",   icon: <Clock size={16} /> },
-          { label: "Approved", value: approved, color: "bg-green-50 text-green-700",   icon: <CheckCircle2 size={16} /> },
-          { label: "Rejected", value: rejected, color: "bg-red-50 text-red-600",       icon: <XCircle size={16} /> },
+          { label: "Pending", value: pending, color: "bg-amber-50 text-amber-700", icon: <Clock size={16} /> },
+          { label: "Approved", value: approved, color: "bg-green-50 text-green-700", icon: <CheckCircle2 size={16} /> },
+          { label: "Rejected", value: rejected, color: "bg-red-50 text-red-600", icon: <XCircle size={16} /> },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>{s.icon}</div>
@@ -352,11 +356,10 @@ export default function LeavesPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
-                statusFilter === s
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${statusFilter === s
                   ? "bg-slate-900 text-white border-slate-900"
                   : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}
+                }`}
             >
               {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
               <span className={`ml-1.5 text-[10px] ${statusFilter === s ? "text-white/70" : "text-slate-400"}`}>{count}</span>
@@ -377,7 +380,7 @@ export default function LeavesPage() {
         <div className="space-y-3">
           {filtered.map((l, i) => {
             const days = countDays(l.startDate, l.endDate);
-            const s    = STATUS_STYLES[l.status];
+            const s = STATUS_STYLES[l.status];
             return (
               <motion.div
                 key={l.id}
@@ -388,8 +391,8 @@ export default function LeavesPage() {
               >
                 {/* Date block */}
                 <div className="shrink-0 w-14 text-center bg-slate-50 border border-slate-200 rounded-lg py-2">
-                  <p className="text-xs text-slate-400 leading-none">{(() => { const [y,m,d] = l.startDate.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:"short"}); })()}</p>
-                  <p className="text-xl font-bold text-slate-900 leading-tight">{(() => { const [y,m,d] = l.startDate.split("-").map(Number); return new Date(y,m-1,d).getDate(); })()}</p>
+                  <p className="text-xs text-slate-400 leading-none">{(() => { const [y, m, d] = l.startDate.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short" }); })()}</p>
+                  <p className="text-xl font-bold text-slate-900 leading-tight">{(() => { const [y, m, d] = l.startDate.split("-").map(Number); return new Date(y, m - 1, d).getDate(); })()}</p>
                 </div>
 
                 {/* Content */}
@@ -410,17 +413,15 @@ export default function LeavesPage() {
                   </p>
                   <p className="text-sm text-slate-700 line-clamp-2">{l.reason}</p>
 
-                  {/* Approval progress (only visible while PENDING) */}
-                  {l.status === "PENDING" && (
-                    <ApprovalProgress approvals={l.approvals} />
-                  )}
+                  {/* Approval progress */}
+                  <ApprovalProgress approvals={l.approvals} />
 
-                  {l.reviewedBy && (
+                  {/* {l.reviewedBy && (
                     <p className="text-xs text-slate-400 mt-1">
                       {l.status === "APPROVED" ? "Approved" : "Rejected"} by {l.reviewedBy.name}
                       {l.reviewNote && <> · <span className="italic">{l.reviewNote}</span></>}
                     </p>
-                  )}
+                  )} */}
                 </div>
 
                 {/* Cancel (PENDING only) */}
@@ -483,33 +484,42 @@ export default function LeavesPage() {
                 </div>
 
                 {/* Dates */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid gap-3 ${form.type === "HALF_DAY" ? "grid-cols-1" : "grid-cols-2"}`}>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Start Date *</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      {form.type === "HALF_DAY" ? "Date *" : "Start Date *"}
+                    </label>
                     <DatePicker
                       value={form.startDate}
-                      onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
+                      onChange={(v) => setForm((f) => ({
+                        ...f,
+                        startDate: v,
+                        endDate: f.type === "HALF_DAY" ? v : (f.endDate && f.endDate < v ? "" : f.endDate),
+                      }))}
                       placeholder="Select date"
                       min={new Date().toISOString().split("T")[0]}
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">End Date *</label>
-                    <DatePicker
-                      value={form.endDate}
-                      onChange={(v) => setForm((f) => ({ ...f, endDate: v }))}
-                      placeholder="Select date"
-                      min={form.startDate || new Date().toISOString().split("T")[0]}
-                    />
-                  </div>
+                  {form.type !== "HALF_DAY" && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">End Date *</label>
+                      <DatePicker
+                        value={form.endDate}
+                        onChange={(v) => setForm((f) => ({ ...f, endDate: v }))}
+                        placeholder="Select date"
+                        min={form.startDate || new Date().toISOString().split("T")[0]}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration + long-leave breakdown */}
-                {form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && (() => {
-                  const total     = countDays(form.startDate, form.endDate);
+                {form.startDate && (form.type === "HALF_DAY" || (form.endDate && new Date(form.endDate) >= new Date(form.startDate))) && (() => {
+                  const effEnd = form.type === "HALF_DAY" ? form.startDate : form.endDate;
+                  const total = countDays(form.startDate, effEnd, form.type);
                   const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
-                  const hasSplit  = quota?.hasPolicy && form.type !== "UNPAID" && total > remaining;
-                  const paidDays  = hasSplit ? Math.floor(Math.min(total, remaining)) : total;
+                  const hasSplit = quota?.hasPolicy && form.type !== "UNPAID" && form.type !== "HALF_DAY" && total > remaining;
+                  const paidDays = hasSplit ? Math.floor(Math.min(total, remaining)) : total;
                   const unpaidDays = hasSplit ? total - paidDays : 0;
 
                   return (
@@ -517,6 +527,7 @@ export default function LeavesPage() {
                       {/* Simple duration line */}
                       <p className="text-xs text-indigo-600 font-medium">
                         {total} day{total !== 1 ? "s" : ""} selected
+                        {form.type === "HALF_DAY" && <span className="ml-1 text-cyan-600">(½ day quota)</span>}
                       </p>
 
                       {/* Long-leave warning card */}
@@ -591,29 +602,29 @@ export default function LeavesPage() {
 
               {/* Footer — recalculate split state for button label */}
               {(() => {
-                const total     = countDays(form.startDate, form.endDate);
+                const effEnd = form.type === "HALF_DAY" ? form.startDate : form.endDate;
+                const total = countDays(form.startDate, effEnd, form.type);
                 const remaining = Math.max(0, quota?.remainingThisMonth ?? Infinity);
-                const hasSplit  = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate) && total > remaining);
-                const allUnpaid = !!(quota?.hasPolicy && form.type !== "UNPAID" && remaining <= 0 && total > 0 && form.startDate && form.endDate && new Date(form.endDate) >= new Date(form.startDate));
+                const hasSplit = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.type !== "HALF_DAY" && form.startDate && effEnd && new Date(effEnd) >= new Date(form.startDate) && total > remaining);
+                const allUnpaid = !!(quota?.hasPolicy && form.type !== "UNPAID" && form.type !== "HALF_DAY" && remaining <= 0 && total > 0 && form.startDate && effEnd && new Date(effEnd) >= new Date(form.startDate));
 
                 return (
                   <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 shrink-0">
                     <button
                       onClick={applyLeave}
                       disabled={applying}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2 ${
-                        hasSplit || allUnpaid
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2 ${hasSplit || allUnpaid
                           ? "bg-amber-500 hover:bg-amber-600 text-white"
                           : "bg-slate-900 hover:bg-slate-700 text-white"
-                      }`}
+                        }`}
                     >
                       {applying
                         ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting…</>
                         : hasSplit
-                        ? <><Banknote size={14} /> Submit</>
-                        : allUnpaid
-                        ? <><Banknote size={14} /> Submit as Unpaid Leave</>
-                        : <><Plus size={14} /> Submit Request</>
+                          ? <><Banknote size={14} /> Submit</>
+                          : allUnpaid
+                            ? <><Banknote size={14} /> Submit as Unpaid Leave</>
+                            : <><Plus size={14} /> Submit Request</>
                       }
                     </button>
                     <button onClick={() => setShowApply(false)}

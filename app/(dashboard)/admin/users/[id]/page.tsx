@@ -18,7 +18,7 @@ import { apiFetch } from "@/lib/api";
 import { UserDetailSkeleton } from "@/components/ui/skeletons";
 import Combobox from "@/components/ui/Combobox";
 import DatePicker from "@/components/ui/DatePicker";
-import { parseUTC, fmtDateOnly } from "@/lib/date";
+import { parseUTC, fmtDateOnly, fmtDateTime } from "@/lib/date";
 
 /* ─── types ─── */
 type UserDetail = {
@@ -32,6 +32,7 @@ type UserDetail = {
   gender?: string | null;
   daysOff?: string[] | null;
   birthdate?: string | null;
+  createdAt?: string | null;
 };
 
 const GENDER_OPTIONS = [
@@ -298,6 +299,11 @@ export default function UserDetailPage() {
             </p>
           )}
           {user.manager && <p className="text-xs text-slate-400 mt-0.5">Manager: {user.manager.name}</p>}
+          {user.createdAt && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              🗓 Joined: {fmtDateTime(parseUTC(user.createdAt))}
+            </p>
+          )}
 
           {/* SAP Module + Leave Policy */}
           <div className="mt-2 flex items-center gap-2 flex-wrap">

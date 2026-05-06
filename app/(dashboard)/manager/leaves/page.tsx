@@ -15,7 +15,7 @@ import { TablePageSkeleton } from "@/components/ui/skeletons";
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
-  | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+  | "MATERNITY" | "PATERNITY" | "COMPENSATORY" | "HALF_DAY";
 
 type LeaveApproval = {
   id: number;
@@ -48,15 +48,16 @@ const TYPE_LABEL: Record<LeaveType, string> = {
 
 const TYPE_COLORS: Record<LeaveType, string> = {
   SICK: "bg-rose-100 text-rose-700", CASUAL: "bg-blue-100 text-blue-700",
-  EARNED: "bg-emerald-100 text-emerald-700", UNPAID: "bg-amber-100 text-amber-800 border border-amber-300",
+  EARNED: "bg-emerald-100 text-emerald-700", HALF_DAY: "bg-cyan-100 text-cyan-700",
+  UNPAID: "bg-amber-100 text-amber-800 border border-amber-300",
   MATERNITY: "bg-pink-100 text-pink-700", PATERNITY: "bg-indigo-100 text-indigo-700",
   COMPENSATORY: "bg-amber-100 text-amber-700",
 };
 
 const STATUS_STYLES: Record<LeaveStatus, { pill: string; label: string }> = {
-  PENDING:  { pill: "bg-amber-50 text-amber-700 border-amber-200",  label: "Pending"  },
-  APPROVED: { pill: "bg-green-50 text-green-700 border-green-200",  label: "Approved" },
-  REJECTED: { pill: "bg-red-50   text-red-600   border-red-200",    label: "Rejected" },
+  PENDING: { pill: "bg-amber-50 text-amber-700 border-amber-200", label: "Pending" },
+  APPROVED: { pill: "bg-green-50 text-green-700 border-green-200", label: "Approved" },
+  REJECTED: { pill: "bg-red-50   text-red-600   border-red-200", label: "Rejected" },
 };
 
 function countDays(start: string, end: string) {
@@ -67,22 +68,22 @@ const fmtDate = fmtDateOnly;
 
 function approvalBadge(a: LeaveApproval, isHR = false) {
   return (
-    <span
-      key={a.id}
-      title={a.reviewNote ? `"${a.reviewNote}"` : a.status}
-      className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-        a.status === "APPROVED"
-          ? "bg-green-50 text-green-700 border-green-200"
-          : a.status === "REJECTED"
+    <div key={a.id} className="flex items-start gap-1.5">
+      <span className={`mt-0.5 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${a.status === "APPROVED"
+        ? "bg-green-50 text-green-700 border-green-200"
+        : a.status === "REJECTED"
           ? "bg-red-50 text-red-600 border-red-200"
           : isHR
-          ? "bg-pink-50 text-pink-600 border-pink-200"
-          : "bg-amber-50 text-amber-700 border-amber-200"
-      }`}
-    >
-      {a.status === "APPROVED" ? <CheckCircle2 size={9} /> : a.status === "REJECTED" ? <XCircle size={9} /> : isHR ? <UserCog size={9} /> : <Clock size={9} />}
-      {a.approver?.name ?? `#${a.approverId}`}
-    </span>
+            ? "bg-pink-50 text-pink-600 border-pink-200"
+            : "bg-amber-50 text-amber-700 border-amber-200"
+        }`}>
+        {a.status === "APPROVED" ? <CheckCircle2 size={9} /> : a.status === "REJECTED" ? <XCircle size={9} /> : isHR ? <UserCog size={9} /> : <Clock size={9} />}
+        {a.approver?.name ?? `#${a.approverId}`}
+      </span>
+      {a.reviewNote && (
+        <span className="text-[10px] text-slate-400 italic pt-0.5">"{a.reviewNote}"</span>
+      )}
+    </div>
   );
 }
 
@@ -91,29 +92,23 @@ function ApprovalChain({ approvals }: { approvals?: LeaveApproval[] }) {
   if (!approvals || approvals.length === 0) return null;
 
   const isHRApproval = (a: LeaveApproval) => a.approver?.role === "HR";
-  const hrList   = approvals.filter(isHRApproval);
+  const hrList = approvals.filter(isHRApproval);
   const mgmtList = approvals.filter((a) => !isHRApproval(a));
 
   return (
     <div className="mt-2.5 space-y-1.5">
       {mgmtList.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-16 shrink-0">
-            Manager
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {mgmtList.map((a) => approvalBadge(a, false))}
-          </div>
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Manager</span>
+          {mgmtList.map((a) => approvalBadge(a, false))}
         </div>
       )}
       {hrList.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-semibold text-pink-500 uppercase tracking-wide w-16 shrink-0 flex items-center gap-1">
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-pink-500 uppercase tracking-wide flex items-center gap-1">
             <UserCog size={10} /> HR
           </span>
-          <div className="flex flex-wrap gap-1">
-            {hrList.map((a) => approvalBadge(a, true))}
-          </div>
+          {hrList.map((a) => approvalBadge(a, true))}
         </div>
       )}
     </div>
@@ -122,16 +117,16 @@ function ApprovalChain({ approvals }: { approvals?: LeaveApproval[] }) {
 
 /* ════════════════════════════════════════════════════════════════════════ */
 export default function LeaveApprovalPage() {
-  const [leaves, setLeaves]             = useState<Leave[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState("");
+  const [leaves, setLeaves] = useState<Leave[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | LeaveStatus>("PENDING");
 
   /* review modal */
-  const [reviewing, setReviewing]   = useState<Leave | null>(null);
+  const [reviewing, setReviewing] = useState<Leave | null>(null);
   const [reviewNote, setReviewNote] = useState("");
-  const [saving, setSaving]         = useState(false);
-  const [reviewErr, setReviewErr]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reviewErr, setReviewErr] = useState("");
 
   const { data: session } = useSession();
   const me = { name: session?.user?.name ?? "", sub: Number(session?.user?.id ?? 0) };
@@ -180,13 +175,13 @@ export default function LeaveApprovalPage() {
   const filtered = (statusFilter === "ALL" ? leaves : leaves.filter((l) => l.status === statusFilter))
     .filter((l) => !showUnpaidOnly || l.type === "UNPAID");
 
-  const pending       = leaves.filter((l) => l.status === "PENDING").length;
-  const approved      = leaves.filter((l) => l.status === "APPROVED").length;
-  const rejected      = leaves.filter((l) => l.status === "REJECTED").length;
+  const pending = leaves.filter((l) => l.status === "PENDING").length;
+  const approved = leaves.filter((l) => l.status === "APPROVED").length;
+  const rejected = leaves.filter((l) => l.status === "REJECTED").length;
   const unpaidPending = leaves.filter((l) => l.type === "UNPAID" && l.status === "PENDING").length;
 
   if (loading) return <TablePageSkeleton />;
-  if (error)   return <p className="text-red-500 p-4">{error}</p>;
+  if (error) return <p className="text-red-500 p-4">{error}</p>;
 
   return (
     <div className="space-y-6">
@@ -200,10 +195,10 @@ export default function LeaveApprovalPage() {
       {/* ── Summary ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Pending Review",  value: pending,       color: "bg-amber-50 text-amber-700",  icon: <Clock size={16} /> },
-          { label: "Approved",        value: approved,      color: "bg-green-50 text-green-700",  icon: <CheckCircle2 size={16} /> },
-          { label: "Rejected",        value: rejected,      color: "bg-red-50 text-red-600",      icon: <XCircle size={16} /> },
-          { label: "Unpaid Pending",  value: unpaidPending, color: "bg-amber-100 text-amber-800", icon: <Banknote size={16} /> },
+          { label: "Pending Review", value: pending, color: "bg-amber-50 text-amber-700", icon: <Clock size={16} /> },
+          { label: "Approved", value: approved, color: "bg-green-50 text-green-700", icon: <CheckCircle2 size={16} /> },
+          { label: "Rejected", value: rejected, color: "bg-red-50 text-red-600", icon: <XCircle size={16} /> },
+          { label: "Unpaid Pending", value: unpaidPending, color: "bg-amber-100 text-amber-800", icon: <Banknote size={16} /> },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>{s.icon}</div>
@@ -223,11 +218,10 @@ export default function LeaveApprovalPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
-                statusFilter === s
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${statusFilter === s
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                }`}
             >
               {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
               <span className={`ml-1.5 text-[10px] ${statusFilter === s ? "text-white/70" : "text-slate-400"}`}>{count}</span>
@@ -239,11 +233,10 @@ export default function LeaveApprovalPage() {
         <div className="ml-auto">
           <button
             onClick={() => setShowUnpaidOnly((p) => !p)}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition ${
-              showUnpaidOnly
-                ? "bg-amber-600 text-white border-amber-600"
-                : "bg-white text-amber-700 border-amber-300 hover:border-amber-500"
-            }`}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition ${showUnpaidOnly
+              ? "bg-amber-600 text-white border-amber-600"
+              : "bg-white text-amber-700 border-amber-300 hover:border-amber-500"
+              }`}
           >
             <Banknote size={12} />
             Unpaid Only
@@ -263,10 +256,10 @@ export default function LeaveApprovalPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((l, i) => {
-            const days       = countDays(l.startDate, l.endDate);
-            const s          = STATUS_STYLES[l.status];
-            const canAct     = myApprovalPending(l);
-            const isUnpaid   = l.type === "UNPAID";
+            const days = countDays(l.startDate, l.endDate);
+            const s = STATUS_STYLES[l.status];
+            const canAct = myApprovalPending(l);
+            const isUnpaid = l.type === "UNPAID";
             const myApproval = l.approvals?.find((a) => a.approverId === me.sub);
 
             return (
@@ -275,16 +268,14 @@ export default function LeaveApprovalPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className={`rounded-xl p-5 flex items-start gap-4 border ${
-                  isUnpaid
-                    ? "bg-amber-50/60 border-amber-200 border-l-4 border-l-amber-400"
-                    : "bg-white border-slate-200"
-                }`}
+                className={`rounded-xl p-5 flex items-start gap-4 border ${isUnpaid
+                  ? "bg-amber-50/60 border-amber-200 border-l-4 border-l-amber-400"
+                  : "bg-white border-slate-200"
+                  }`}
               >
                 {/* Avatar */}
-                <div className={`w-10 h-10 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 ${
-                  isUnpaid ? "bg-amber-600" : "bg-slate-900"
-                }`}>
+                <div className={`w-10 h-10 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 ${isUnpaid ? "bg-amber-600" : "bg-slate-900"
+                  }`}>
                   {l.user?.name?.[0]?.toUpperCase() ?? "?"}
                 </div>
 
@@ -335,31 +326,30 @@ export default function LeaveApprovalPage() {
                   )}
 
                   {/* Final reviewer note */}
-                  {l.reviewedBy && l.status !== "PENDING" && (
+                  {/* {l.reviewedBy && l.status !== "PENDING" && (
                     <p className="text-xs text-slate-400 mt-1.5">
                       {l.status === "APPROVED" ? "Approved" : "Rejected"} by {l.reviewedBy.name}
                       {l.reviewNote && <> · <span className="italic">{l.reviewNote}</span></>}
                     </p>
-                  )}
+                  )} */}
 
                   {/* My already-submitted decision */}
-                  {myApproval && myApproval.status !== "PENDING" && (
+                  {/* {myApproval && myApproval.status !== "PENDING" && (
                     <p className={`text-xs mt-1.5 font-medium ${myApproval.status === "APPROVED" ? "text-green-600" : "text-red-500"}`}>
                       You {myApproval.status === "APPROVED" ? "approved" : "rejected"} this request
                       {myApproval.reviewNote && <span className="font-normal text-slate-400"> · {myApproval.reviewNote}</span>}
                     </p>
-                  )}
+                  )} */}
                 </div>
 
                 {/* Action button */}
                 {canAct && (
                   <button
                     onClick={() => { setReviewing(l); setReviewNote(""); setReviewErr(""); }}
-                    className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition text-white ${
-                      isUnpaid
-                        ? "bg-amber-600 hover:bg-amber-700"
-                        : "bg-slate-900 hover:bg-slate-700"
-                    }`}
+                    className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition text-white ${isUnpaid
+                      ? "bg-amber-600 hover:bg-amber-700"
+                      : "bg-slate-900 hover:bg-slate-700"
+                      }`}
                   >
                     <MessageSquare size={13} /> Review
                   </button>
@@ -380,22 +370,19 @@ export default function LeaveApprovalPage() {
           >
             <motion.div
               initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
-              className={`w-full max-w-md shadow-xl rounded-2xl flex flex-col max-h-[90vh] border ${
-                reviewing.type === "UNPAID"
-                  ? "bg-white border-amber-200"
-                  : "bg-white border-slate-200"
-              }`}
+              className={`w-full max-w-md shadow-xl rounded-2xl flex flex-col max-h-[90vh] border ${reviewing.type === "UNPAID"
+                ? "bg-white border-amber-200"
+                : "bg-white border-slate-200"
+                }`}
             >
               {/* ── Header ── */}
-              <div className={`px-6 py-5 border-b shrink-0 flex items-center justify-between rounded-t-2xl ${
-                reviewing.type === "UNPAID"
-                  ? "bg-amber-50 border-amber-200"
-                  : "border-slate-100"
-              }`}>
+              <div className={`px-6 py-5 border-b shrink-0 flex items-center justify-between rounded-t-2xl ${reviewing.type === "UNPAID"
+                ? "bg-amber-50 border-amber-200"
+                : "border-slate-100"
+                }`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    reviewing.type === "UNPAID" ? "bg-amber-600" : "bg-slate-900"
-                  }`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${reviewing.type === "UNPAID" ? "bg-amber-600" : "bg-slate-900"
+                    }`}>
                     {reviewing.type === "UNPAID"
                       ? <Banknote size={16} className="text-white" />
                       : <MessageSquare size={15} className="text-white" />}
@@ -457,11 +444,10 @@ export default function LeaveApprovalPage() {
                 })()}
 
                 {/* Leave summary card */}
-                <div className={`rounded-xl p-4 space-y-2.5 ${
-                  reviewing.type === "UNPAID"
-                    ? "bg-amber-50 border border-amber-200"
-                    : "bg-slate-50 border border-slate-100"
-                }`}>
+                <div className={`rounded-xl p-4 space-y-2.5 ${reviewing.type === "UNPAID"
+                  ? "bg-amber-50 border border-amber-200"
+                  : "bg-slate-50 border border-slate-100"
+                  }`}>
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${TYPE_COLORS[reviewing.type]}`}>
                       {reviewing.type === "UNPAID" ? "⚠ Unpaid Leave" : TYPE_LABEL[reviewing.type]}
@@ -486,23 +472,21 @@ export default function LeaveApprovalPage() {
                   const isUnpaidModal = reviewing.type === "UNPAID";
                   const groups = [
                     { label: "Manager", items: reviewing.approvals!.filter((a) => !isHRApproval(a)), isHR: false },
-                    { label: "HR",      items: reviewing.approvals!.filter(isHRApproval),             isHR: true  },
+                    { label: "HR", items: reviewing.approvals!.filter(isHRApproval), isHR: true },
                   ].filter((g) => g.items.length > 0);
 
                   return (
-                    <div className={`rounded-xl px-4 py-3 space-y-2.5 border ${
-                      isUnpaidModal
-                        ? "bg-amber-50/60 border-amber-200"
-                        : "bg-blue-50 border-blue-200"
-                    }`}>
+                    <div className={`rounded-xl px-4 py-3 space-y-2.5 border ${isUnpaidModal
+                      ? "bg-amber-50/60 border-amber-200"
+                      : "bg-blue-50 border-blue-200"
+                      }`}>
                       <p className={`text-xs font-semibold ${isUnpaidModal ? "text-amber-700" : "text-blue-700"}`}>
                         Approval chain
                       </p>
                       {groups.map((g) => (
                         <div key={g.label}>
-                          <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 flex items-center gap-1 ${
-                            g.isHR ? "text-pink-500" : "text-slate-500"
-                          }`}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 flex items-center gap-1 ${g.isHR ? "text-pink-500" : "text-slate-500"
+                            }`}>
                             {g.isHR && <UserCog size={10} />}
                             {g.label}
                           </p>
@@ -510,19 +494,18 @@ export default function LeaveApprovalPage() {
                             {g.items.map((a) => (
                               <div
                                 key={a.id}
-                                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${
-                                  g.isHR
-                                    ? "bg-pink-50 border-pink-100"
-                                    : "bg-white border-slate-100"
-                                }`}
+                                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${g.isHR
+                                  ? "bg-pink-50 border-pink-100"
+                                  : "bg-white border-slate-100"
+                                  }`}
                               >
                                 {a.status === "APPROVED"
                                   ? <CheckCircle2 size={13} className="text-green-500 shrink-0" />
                                   : a.status === "REJECTED"
-                                  ? <XCircle size={13} className="text-red-500 shrink-0" />
-                                  : g.isHR
-                                  ? <UserCog size={13} className="text-pink-400 shrink-0" />
-                                  : <Clock size={13} className="text-amber-500 shrink-0" />}
+                                    ? <XCircle size={13} className="text-red-500 shrink-0" />
+                                    : g.isHR
+                                      ? <UserCog size={13} className="text-pink-400 shrink-0" />
+                                      : <Clock size={13} className="text-amber-500 shrink-0" />}
                                 <span className={`text-xs flex-1 ${a.approverId === me.sub ? "font-semibold text-slate-800" : g.isHR ? "text-pink-700" : "text-slate-600"}`}>
                                   {a.approver?.name ?? `#${a.approverId}`}
                                   {a.approverId === me.sub && (
@@ -534,15 +517,14 @@ export default function LeaveApprovalPage() {
                                     HR
                                   </span>
                                 )}
-                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                  a.status === "APPROVED"
-                                    ? "bg-green-100 text-green-700"
-                                    : a.status === "REJECTED"
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${a.status === "APPROVED"
+                                  ? "bg-green-100 text-green-700"
+                                  : a.status === "REJECTED"
                                     ? "bg-red-100 text-red-600"
                                     : g.isHR
-                                    ? "bg-pink-100 text-pink-600"
-                                    : "bg-amber-100 text-amber-700"
-                                }`}>
+                                      ? "bg-pink-100 text-pink-600"
+                                      : "bg-amber-100 text-amber-700"
+                                  }`}>
                                   {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
                                 </span>
                               </div>
@@ -568,11 +550,10 @@ export default function LeaveApprovalPage() {
                         : "Add a comment for the employee…"
                     }
                     rows={2}
-                    className={`w-full border px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 bg-white resize-none ${
-                      reviewing.type === "UNPAID"
-                        ? "border-amber-200 focus:ring-amber-400/30"
-                        : "border-slate-200 focus:ring-slate-900/20"
-                    }`}
+                    className={`w-full border px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 bg-white resize-none ${reviewing.type === "UNPAID"
+                      ? "border-amber-200 focus:ring-amber-400/30"
+                      : "border-slate-200 focus:ring-slate-900/20"
+                      }`}
                   />
                 </div>
 
@@ -582,9 +563,8 @@ export default function LeaveApprovalPage() {
               </div>
 
               {/* ── Footer ── */}
-              <div className={`px-6 py-4 border-t shrink-0 space-y-3 rounded-b-2xl ${
-                reviewing.type === "UNPAID" ? "bg-amber-50 border-amber-200" : "border-slate-100"
-              }`}>
+              <div className={`px-6 py-4 border-t shrink-0 space-y-3 rounded-b-2xl ${reviewing.type === "UNPAID" ? "bg-amber-50 border-amber-200" : "border-slate-100"
+                }`}>
                 {reviewing.type === "UNPAID" && (
                   <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-700 font-medium">
                     <AlertTriangle size={11} />
@@ -595,17 +575,16 @@ export default function LeaveApprovalPage() {
                   <button
                     onClick={() => submitReview("APPROVED")}
                     disabled={saving}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2 text-white ${
-                      reviewing.type === "UNPAID"
-                        ? "bg-amber-600 hover:bg-amber-700 active:bg-amber-800"
-                        : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
-                    }`}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2 text-white ${reviewing.type === "UNPAID"
+                      ? "bg-amber-600 hover:bg-amber-700 active:bg-amber-800"
+                      : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
+                      }`}
                   >
                     {saving
                       ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       : reviewing.type === "UNPAID"
-                      ? <><Banknote size={14} /> Approve </>
-                      : <><Check size={14} /> Approve</>
+                        ? <><Banknote size={14} /> Approve </>
+                        : <><Check size={14} /> Approve</>
                     }
                   </button>
                   <button

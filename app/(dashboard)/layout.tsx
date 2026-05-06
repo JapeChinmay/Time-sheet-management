@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
-import { parseUTC, fmtDate as fmtDateLib, timeAgo } from "@/lib/date";
+import { parseUTC, fmtDate as fmtDateLib, fmtDateTime, timeAgo } from "@/lib/date";
 import { TokenSync } from "@/components/TokenSync";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -177,7 +177,7 @@ function ResolvedBugsModal({
   const current = bugs[idx];
   const total = bugs.length;
 
-  function fmtDate(iso: string) { return fmtDateLib(parseUTC(iso)); }
+  function fmtDate(iso: string) { return fmtDateTime(parseUTC(iso)); }
 
   return (
     <motion.div

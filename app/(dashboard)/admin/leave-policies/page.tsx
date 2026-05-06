@@ -6,12 +6,13 @@ import {
   Plus, X, Pencil, Trash2, ShieldCheck, ChevronDown, AlertCircle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { parseUTC, fmtDateTime } from "@/lib/date";
 import { LeavePoliciesSkeleton } from "@/components/ui/skeletons";
 
 /* ── types ── */
 type LeaveType =
   | "SICK" | "CASUAL" | "EARNED" | "UNPAID"
-  | "MATERNITY" | "PATERNITY" | "COMPENSATORY";
+  | "MATERNITY" | "PATERNITY" | "COMPENSATORY" | "HALF_DAY";
 
 type Policy = {
   id: number;
@@ -27,6 +28,7 @@ const ALL_LEAVE_TYPES: { value: LeaveType; label: string; gender?: string }[] = 
   { value: "SICK",         label: "Sick Leave"         },
   { value: "CASUAL",       label: "Casual Leave"       },
   { value: "EARNED",       label: "Earned Leave"       },
+  { value: "HALF_DAY",     label: "Half Day Leave"     },
   { value: "UNPAID",       label: "Unpaid Leave"       },
   { value: "MATERNITY",    label: "Maternity Leave",  gender: "♀ Female" },
   { value: "PATERNITY",    label: "Paternity Leave",  gender: "♂ Male"   },
@@ -37,6 +39,7 @@ const TYPE_COLORS: Record<LeaveType, string> = {
   SICK:         "bg-rose-100 text-rose-700",
   CASUAL:       "bg-blue-100 text-blue-700",
   EARNED:       "bg-emerald-100 text-emerald-700",
+  HALF_DAY:     "bg-cyan-100 text-cyan-700",
   UNPAID:       "bg-slate-100 text-slate-600",
   MATERNITY:    "bg-pink-100 text-pink-700",
   PATERNITY:    "bg-indigo-100 text-indigo-700",
@@ -204,6 +207,11 @@ export default function LeavePoliciesPage() {
                 <span className="text-xs text-slate-500">Monthly Quota</span>
                 <span className="text-sm font-bold text-slate-900">{p.monthlyQuota} day{p.monthlyQuota !== 1 ? "s" : ""}</span>
               </div>
+
+              {/* Created at */}
+              <p className="text-[11px] text-slate-400">
+                Created: {fmtDateTime(parseUTC(p.createdAt))}
+              </p>
 
               {/* Allowed leave types */}
               <div>
