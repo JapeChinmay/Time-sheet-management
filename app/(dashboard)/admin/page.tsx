@@ -25,6 +25,10 @@ type LoginLog = {
   user?: { name: string; email: string };
 };
 
+type ResolvedLoginLog = Omit<LoginLog, "location"> & {
+  location: string;
+};
+
 /* ─── helpers ─── */
 const norm = (r: any): any[] => Array.isArray(r) ? r : r?.data ?? r?.items ?? [];
 
@@ -80,7 +84,7 @@ export default function AdminDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [logs, setLogs] = useState<LoginLog[]>([]);
-  const [resolvedLogs, setResolvedLogs] = useState<(LoginLog & { location: string })[]>([]);
+ const [resolvedLogs, setResolvedLogs] = useState<ResolvedLoginLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -100,11 +104,15 @@ export default function AdminDashboard() {
       setLogs(rawLogs);
 
       // Resolve locations in background
-      const resolved = await Promise.all(
-        rawLogs.map(async (l) => ({
-          ...l,
-        }))
-      );
+    const resolved: ResolvedLoginLog[] = await Promise.all(
+  rawLogs.map(async (l) => ({
+    ...l,
+    location: l.location
+      ? `${l.location.latitude}, ${l.location.longitude}`
+      : "Unknown",
+  }))
+);
+
       setResolvedLogs(resolved);
     } catch (e) {
       console.error("Dashboard error:", e);
