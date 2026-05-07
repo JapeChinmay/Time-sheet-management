@@ -103,9 +103,10 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin": "Admin Overview",
   "/admin/audit-logs": "Activity Logs",
   "/admin/timesheets": "Timesheet Approval",
-  "/manager/timesheets": "Timesheet Approval",
-  "/manager/tasks":     "Project Tasks",
-  "/manager/leaves":        "Leave Approval",
+  "/manager/timesheets":  "Timesheet Approval",
+  "/manager/tasks":       "Project Tasks",
+  "/manager/projects":    "Manage Projects",
+  "/manager/leaves":      "Leave Approval",
   "/employee/leaves":       "My Leaves",
   "/admin/leave-policies":  "Leave Policies",
   "/hr/leaves":             "HR Leave Approval",
@@ -974,8 +975,8 @@ export default function DashboardLayout({
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
   const isHR    = user?.role === "HR";
-  /* MANAGER role always shows the Manager sidebar section, regardless of isPM */
-  const showManagerSection = user?.role === "MANAGER" || isPM;
+  /* Manager section visible to: MANAGER role, PM of any project, ADMIN, SUPERADMIN */
+  const showManagerSection = user?.role === "MANAGER" || user?.role === "ADMIN" || user?.role === "SUPERADMIN" || isPM;
 
   /* ── Check for newly resolved bugs on login ── */
   useEffect(() => {
@@ -1012,7 +1013,7 @@ export default function DashboardLayout({
       user?.role === "ADMIN" ||
       user?.role === "SUPERADMIN" ||
       user?.role === "HR"
-    ) return;
+    ) return; /* these roles show manager section regardless of isPM */
     apiFetch(`/projects?filter=projectManagerId||$eq||${userId}&limit=1`)
       .then((res) => {
         const data = Array.isArray(res) ? res : res.data ?? [];
@@ -1077,6 +1078,7 @@ export default function DashboardLayout({
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Manager</p>
               <SidebarItem icon={<ListTodo size={16} />}        label="Project Tasks"      href="/manager/tasks"      active={pathname.startsWith("/manager/tasks")}      onClose={() => setOpen(false)} />
+              <SidebarItem icon={<FolderOpen size={16} />}     label="Manage Projects"    href="/manager/projects"   active={pathname.startsWith("/manager/projects")}   onClose={() => setOpen(false)} />
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")} onClose={() => setOpen(false)} />
               <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}     onClose={() => setOpen(false)} />
             </>
@@ -1096,12 +1098,10 @@ export default function DashboardLayout({
             <>
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Admin</p>
-              <SidebarItem icon={<Shield size={16} />}         label="Admin Overview"     href="/admin"              active={isActive("/admin")}                          onClose={() => setOpen(false)} />
-              <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"     active={isActive("/employee/users")}                 onClose={() => setOpen(false)} />
-              <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")}  onClose={() => setOpen(false)} />
-              <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}      onClose={() => setOpen(false)} />
-              <SidebarItem icon={<ScrollText size={16} />}     label="Leave Policies"     href="/admin/leave-policies" active={pathname.startsWith("/admin/leave-policies")} onClose={() => setOpen(false)} />
-              <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"   active={pathname.startsWith("/admin/audit-logs")}    onClose={() => setOpen(false)} />
+              <SidebarItem icon={<Shield size={16} />}         label="Admin Overview"     href="/admin"                active={isActive("/admin")}                            onClose={() => setOpen(false)} />
+              <SidebarItem icon={<Users size={16} />}          label="Users"              href="/employee/users"       active={isActive("/employee/users")}                   onClose={() => setOpen(false)} />
+              <SidebarItem icon={<ScrollText size={16} />}     label="Leave Policies"     href="/admin/leave-policies" active={pathname.startsWith("/admin/leave-policies")}  onClose={() => setOpen(false)} />
+              <SidebarItem icon={<ScrollText size={16} />}     label="Activity Logs"      href="/admin/audit-logs"     active={pathname.startsWith("/admin/audit-logs")}      onClose={() => setOpen(false)} />
             </>
           )}
 

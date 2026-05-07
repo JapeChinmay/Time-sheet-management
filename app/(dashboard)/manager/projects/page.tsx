@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Folder, Calendar, Building2, MapPin,
-  Search, Users, Clock3, Star,
+  Search, Users, Clock3, Star, X, Plus, Trash2,
+  Loader2, Check, UserPlus, Sliders,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { fmtDateOnly } from "@/lib/date";
@@ -40,6 +41,16 @@ type Project = {
   projectManagerId?: number | null;
 };
 
+type Responsibility = {
+  userId: number;
+  name: string;
+  email: string;
+  role: string;
+  responsibility: number | null;
+};
+
+type AllUser = { id: number; name: string; email: string; role: string; designation?: string };
+
 const CARD_PALETTE = [
   { bg: "bg-indigo-100",  border: "border-indigo-300",  icon: "bg-indigo-200  text-indigo-800"  },
   { bg: "bg-violet-100",  border: "border-violet-300",  icon: "bg-violet-200  text-violet-800"  },
@@ -56,6 +67,16 @@ const AVATAR_COLORS = [
   "bg-emerald-500","bg-rose-500",   "bg-amber-500",   "bg-fuchsia-500",
   "bg-orange-500", "bg-cyan-500",   "bg-pink-500",    "bg-purple-500",
 ] as const;
+
+const ROLE_COLORS: Record<string, string> = {
+  SUPERADMIN: "bg-rose-100 text-rose-700",
+  ADMIN: "bg-indigo-100 text-indigo-700",
+  MANAGER: "bg-teal-100 text-teal-700",
+  HR: "bg-pink-100 text-pink-700",
+  INTERNAL: "bg-slate-100 text-slate-600",
+  EXTERNAL: "bg-orange-100 text-orange-700",
+  INTERN: "bg-amber-100 text-amber-700",
+};
 
 const PT_LABELS: Record<string, string> = {
   IMPLEMENTATION_GREENFIELD:  "Implementation",
@@ -85,7 +106,9 @@ const fmtDate = fmtDateOnly;
 export default function ManagerProjectsPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const meId = Number(session?.user?.id ?? 0);
+  const meId       = Number(session?.user?.id ?? 0);
+  const callerRole = session?.user?.role ?? "";
+  const isAdmin    = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
   const [projects,     setProjects]     = useState<Project[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -93,16 +116,125 @@ export default function ManagerProjectsPage() {
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED">("ALL");
 
-  useEffect(() => {
-    apiFetch("/projects?join=members&join=projectManager&limit=200")
+  /* member management modal */
+  const [mgmtProject,    setMgmtProject]    = useState<Project | null>(null);
+  const [responsibilities, setResponsibilities] = useState<Responsibility[]>([]);
+  const [allUsers,       setAllUsers]       = useState<AllUser[]>([]);
+  const [userSearch,     setUserSearch]     = useState("");
+  const [addingUserId,   setAddingUserId]   = useState<number | null>(null);
+  const [removingId,     setRemovingId]     = useState<number | null>(null);
+  const [savingResp,     setSavingResp]     = useState(false);
+  const [mgmtLoading,    setMgmtLoading]    = useState(false);
+  const [mgmtErr,        setMgmtErr]        = useState("");
+  const [mgmtOk,         setMgmtOk]         = useState("");
+  /* local edits to responsibility % */
+  const [respEdits, setRespEdits] = useState<Record<number, string>>({});
+
+  const loadProjects = () => {
+    const url = isAdmin
+      ? "/projects?join=members&join=projectManager&limit=200"
+      : `/projects?filter=projectManagerId||$eq||${meId}&join=members&join=projectManager&limit=200`;
+    return apiFetch(url)
       .then((res) => setProjects(Array.isArray(res) ? res : res.data ?? []))
       .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { if (meId || isAdmin) loadProjects(); }, [meId, isAdmin]);
+
+  /* open member management panel */
+  const openMgmt = async (p: Project) => {
+    setMgmtProject(p);
+    setMgmtErr("");
+    setMgmtOk("");
+    setUserSearch("");
+    setRespEdits({});
+    setMgmtLoading(true);
+    try {
+      const [resp, uRes] = await Promise.all([
+        apiFetch(`/projects/${p.id}/members/responsibilities`),
+        apiFetch("/users?limit=300&sort=name,ASC"),
+      ]);
+      setResponsibilities(Array.isArray(resp) ? resp : []);
+      setAllUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
+      const edits: Record<number, string> = {};
+      (Array.isArray(resp) ? resp : []).forEach((r: Responsibility) => {
+        edits[r.userId] = r.responsibility != null ? String(r.responsibility) : "";
+      });
+      setRespEdits(edits);
+    } catch (e: any) {
+      setMgmtErr(e.message ?? "Failed to load members");
+    } finally {
+      setMgmtLoading(false);
+    }
+  };
+
+  const addMember = async (userId: number) => {
+    if (!mgmtProject) return;
+    setAddingUserId(userId);
+    setMgmtErr("");
+    try {
+      await apiFetch(`/projects/${mgmtProject.id}/members`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      const resp = await apiFetch(`/projects/${mgmtProject.id}/members/responsibilities`);
+      const list: Responsibility[] = Array.isArray(resp) ? resp : [];
+      setResponsibilities(list);
+      const edits: Record<number, string> = { ...respEdits };
+      list.forEach((r) => { if (!(r.userId in edits)) edits[r.userId] = ""; });
+      setRespEdits(edits);
+      await loadProjects();
+    } catch (e: any) {
+      setMgmtErr(e.message ?? "Failed to add member");
+    } finally {
+      setAddingUserId(null);
+    }
+  };
+
+  const removeMember = async (userId: number) => {
+    if (!mgmtProject) return;
+    setRemovingId(userId);
+    setMgmtErr("");
+    try {
+      await apiFetch(`/projects/${mgmtProject.id}/members/${userId}`, { method: "DELETE" });
+      setResponsibilities((prev) => prev.filter((r) => r.userId !== userId));
+      setRespEdits((prev) => { const e = { ...prev }; delete e[userId]; return e; });
+      await loadProjects();
+    } catch (e: any) {
+      setMgmtErr(e.message ?? "Failed to remove member");
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const saveResponsibilities = async () => {
+    if (!mgmtProject) return;
+    setSavingResp(true);
+    setMgmtErr("");
+    setMgmtOk("");
+    try {
+      const items = responsibilities.map((r) => ({
+        userId: r.userId,
+        responsibility: respEdits[r.userId] !== "" ? Number(respEdits[r.userId]) : null,
+      })).filter((i) => i.responsibility !== null) as { userId: number; responsibility: number }[];
+
+      await apiFetch(`/projects/${mgmtProject.id}/members/responsibilities`, {
+        method: "PATCH",
+        body: JSON.stringify({ items }),
+      });
+      setMgmtOk("Saved!");
+      setTimeout(() => setMgmtOk(""), 2000);
+    } catch (e: any) {
+      setMgmtErr(e.message ?? "Failed to save");
+    } finally {
+      setSavingResp(false);
+    }
+  };
 
   /* projects where I am PM vs where I'm a member */
-  const myPMProjects     = useMemo(() => projects.filter((p) => p.projectManagerId === meId), [projects, meId]);
-  const memberProjects   = useMemo(() => projects.filter((p) => p.projectManagerId !== meId), [projects, meId]);
+  const myPMProjects   = useMemo(() => projects.filter((p) => p.projectManagerId === meId), [projects, meId]);
+  const memberProjects = useMemo(() => projects.filter((p) => p.projectManagerId !== meId), [projects, meId]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -117,6 +249,15 @@ export default function ManagerProjectsPage() {
       return matchSearch && matchStatus;
     });
   }, [projects, search, statusFilter]);
+
+  /* users not yet in the project */
+  const memberIds    = new Set(responsibilities.map((r) => r.userId));
+  const addableUsers = allUsers.filter(
+    (u) => !memberIds.has(u.id) &&
+      (!userSearch.trim() ||
+        u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearch.toLowerCase()))
+  );
 
   if (loading) return <ProjectsGridSkeleton />;
   if (error)   return <p className="text-red-500 p-4">{error}</p>;
@@ -186,7 +327,8 @@ export default function ManagerProjectsPage() {
           <AnimatePresence>
             {filtered.map((p, idx) => {
               const theme = CARD_PALETTE[p.id % CARD_PALETTE.length];
-              const isMyPM = p.projectManagerId === meId;
+              const isMyPM    = Number(p.projectManagerId) === meId;
+              const canManage = isMyPM || isAdmin;
               return (
                 <ProjectCard
                   key={p.id}
@@ -195,25 +337,207 @@ export default function ManagerProjectsPage() {
                   index={idx}
                   isMyPM={isMyPM}
                   onClick={() => router.push(`/employee/projects/${p.id}`)}
+                  onManageMembers={canManage ? (e) => { e.stopPropagation(); openMgmt(p); } : undefined}
                 />
               );
             })}
           </AnimatePresence>
         </motion.div>
       )}
+
+      {/* ══ MEMBER MANAGEMENT MODAL ══ */}
+      <AnimatePresence>
+        {mgmtProject && (
+          <motion.div
+            className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setMgmtProject(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              className="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center">
+                    <Users size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Manage Members</h3>
+                    <p className="text-xs text-slate-400 truncate max-w-[260px]">{mgmtProject.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setMgmtProject(null)} className="text-slate-400 hover:text-slate-600">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                {mgmtLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-12 text-slate-400">
+                    <Loader2 size={18} className="animate-spin" /> Loading…
+                  </div>
+                ) : (
+                  <>
+                    {/* ── Current members ── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                          <Sliders size={12} /> Current Members &amp; Allocation
+                        </p>
+                        <span className="text-[11px] text-slate-400">{responsibilities.length} member{responsibilities.length !== 1 ? "s" : ""}</span>
+                      </div>
+
+                      {responsibilities.length === 0 ? (
+                        <p className="text-sm text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
+                          No members yet. Add someone below.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {responsibilities.map((r, i) => (
+                            <div key={r.userId} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className={`w-8 h-8 rounded-full ${AVATAR_COLORS[i % AVATAR_COLORS.length]} text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0`}>
+                                {r.name[0]?.toUpperCase() ?? "?"}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-900 truncate">{r.name}</p>
+                                <p className="text-xs text-slate-400 truncate">{r.email}</p>
+                              </div>
+                              {/* Allocation % input */}
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step={5}
+                                  value={respEdits[r.userId] ?? ""}
+                                  onChange={(e) => setRespEdits((prev) => ({ ...prev, [r.userId]: e.target.value }))}
+                                  placeholder="—"
+                                  className="w-16 border border-slate-200 px-2 py-1 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-violet-500/30 bg-white"
+                                />
+                                <span className="text-xs text-slate-400">%</span>
+                              </div>
+                              <button
+                                onClick={() => removeMember(r.userId)}
+                                disabled={removingId === r.userId}
+                                className="p-1.5 text-slate-300 hover:text-red-500 transition disabled:opacity-40 flex-shrink-0"
+                                title="Remove member"
+                              >
+                                {removingId === r.userId
+                                  ? <Loader2 size={13} className="animate-spin" />
+                                  : <Trash2 size={13} />
+                                }
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {responsibilities.length > 0 && (
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            onClick={saveResponsibilities}
+                            disabled={savingResp}
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-lg hover:bg-violet-700 transition disabled:opacity-50"
+                          >
+                            {savingResp
+                              ? <><Loader2 size={12} className="animate-spin" /> Saving…</>
+                              : mgmtOk
+                              ? <><Check size={12} /> Saved!</>
+                              : <><Check size={12} /> Save Allocation</>
+                            }
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Add members ── */}
+                    <div>
+                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <UserPlus size={12} /> Add Member
+                      </p>
+                      <div className="relative mb-2">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          placeholder="Search users…"
+                          value={userSearch}
+                          onChange={(e) => setUserSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                        />
+                        {userSearch && (
+                          <button onClick={() => setUserSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
+                        {addableUsers.length === 0 ? (
+                          <p className="text-sm text-slate-400 text-center py-6">
+                            {userSearch ? "No users match search" : "All users already added"}
+                          </p>
+                        ) : addableUsers.map((u) => (
+                          <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center flex-shrink-0">
+                              {u.name[0]?.toUpperCase() ?? "?"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
+                              <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
+                              {u.role}
+                            </span>
+                            <button
+                              onClick={() => addMember(u.id)}
+                              disabled={addingUserId === u.id}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-700 transition disabled:opacity-50 flex-shrink-0"
+                            >
+                              {addingUserId === u.id
+                                ? <Loader2 size={11} className="animate-spin" />
+                                : <Plus size={11} />
+                              }
+                              Add
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {mgmtErr && (
+                      <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{mgmtErr}</p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex-shrink-0">
+                <button
+                  onClick={() => setMgmtProject(null)}
+                  className="w-full border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 /* ── Project Card ── */
 function ProjectCard({
-  project: p, theme, index, isMyPM, onClick,
+  project: p, theme, index, isMyPM, onClick, onManageMembers,
 }: {
   project: Project;
   theme: typeof CARD_PALETTE[number];
   index: number;
   isMyPM: boolean;
   onClick: () => void;
+  onManageMembers?: (e: React.MouseEvent) => void;
 }) {
   const members  = p.members ?? [];
   const visible  = members.slice(0, 4);
@@ -312,23 +636,35 @@ function ProjectCard({
         {/* Divider */}
         <div className={`border-t ${theme.border}`} />
 
-        {/* Footer: members */}
-        <div className="flex items-center gap-2">
-          <div className="flex -space-x-2">
-            {visible.map((m, i) => (
-              <MemberAvatar key={m.id ?? i} member={m} colorCls={AVATAR_COLORS[i % AVATAR_COLORS.length]} />
-            ))}
-            {overflow > 0 && (
-              <div className="w-7 h-7 rounded-full bg-white border-2 border-slate-200 text-slate-500 text-[10px] font-semibold flex items-center justify-center z-10">
-                +{overflow}
-              </div>
+        {/* Footer: members + manage button */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {visible.map((m, i) => (
+                <MemberAvatar key={m.id ?? i} member={m} colorCls={AVATAR_COLORS[i % AVATAR_COLORS.length]} />
+              ))}
+              {overflow > 0 && (
+                <div className="w-7 h-7 rounded-full bg-white border-2 border-slate-200 text-slate-500 text-[10px] font-semibold flex items-center justify-center z-10">
+                  +{overflow}
+                </div>
+              )}
+            </div>
+            {members.length > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                <Users size={10} />
+                {members.length} member{members.length !== 1 ? "s" : ""}
+              </span>
             )}
           </div>
-          {members.length > 0 && (
-            <span className="flex items-center gap-1 text-[11px] text-slate-400">
-              <Users size={10} />
-              {members.length} member{members.length !== 1 ? "s" : ""}
-            </span>
+
+          {/* Manage members button — PM only */}
+          {onManageMembers && (
+            <button
+              onClick={onManageMembers}
+              className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-white/70 border border-slate-200 text-violet-700 font-medium hover:bg-violet-50 hover:border-violet-300 transition flex-shrink-0"
+            >
+              <UserPlus size={11} /> Manage
+            </button>
           )}
         </div>
       </div>

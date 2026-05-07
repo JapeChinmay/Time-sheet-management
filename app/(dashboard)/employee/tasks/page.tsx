@@ -2,13 +2,13 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, CheckCircle2, Circle, Folder, Users,
   Calendar, Search, X, ChevronRight, Plus, Loader2,
   Clock, PauseCircle, AlertTriangle, ChevronDown, Forward, Check,
-  ExternalLink,
+  ExternalLink, UserCircle2,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { TablePageSkeleton } from "@/components/ui/skeletons";
@@ -48,6 +48,7 @@ type Task = {
   status: TaskStatus;
   module?: string | null;
   billable: boolean;
+  taskType?: "DEDICATED" | "SHARED" | null;
   durationUnit?: 'HOUR' | 'DAY' | null;
   durationValue?: number | null;
   projectId: number;
@@ -299,7 +300,6 @@ export default function TasksPage() {
 
 function TasksPageInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("ALL");
@@ -307,15 +307,6 @@ function TasksPageInner() {
   const { data: session } = useSession();
   const callerRole = session?.user?.role ?? "";
 
-  /* create task modal */
-  const [showCreate, setShowCreate] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [createForm, setCreateForm] = useState({ projectId: "", name: "", module: "", description: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
-  const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
-  const [userSearch, setUserSearch] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
 
   /* forward / assign task modal */
   const [fwdTask, setFwdTask] = useState<Task | null>(null);
@@ -332,7 +323,7 @@ function TasksPageInner() {
 
   const loadTasks = async () => {
     try {
-      const res = await apiFetch("/tasks?join=project&join=assignees&join=assigner&join=forwardedFrom&join=forwardedTo&join=forwardLogs&join=forwardLogs.fromUser&join=forwardLogs.toUser&join=statusLogs&join=statusLogs.changedBy&limit=500&sort=createdAt,DESC");
+      const res = await apiFetch("/tasks/assigned-to-me");
       setTasks(Array.isArray(res) ? res : res.data ?? []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -341,24 +332,6 @@ function TasksPageInner() {
   useEffect(() => {
     loadTasks();
 
-    const shouldCreate = searchParams.get("createTask") === "1";
-    const preProjectId = searchParams.get("projectId") ?? "";
-    if (shouldCreate && (callerRole === "ADMIN" || callerRole === "SUPERADMIN") && preProjectId) {
-      const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
-      if (isAdmin) {
-        apiFetch("/projects?limit=200&sort=name,ASC").then((pRes) => {
-          setProjects(Array.isArray(pRes) ? pRes : pRes.data ?? []);
-        }).catch(() => { });
-        apiFetch("/users?limit=200&sort=name,ASC").then((uRes) => {
-          setUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
-        }).catch(() => { });
-        setCreateForm({ projectId: preProjectId, name: "", module: "", description: "", billable: true, durationUnit: "", durationValue: "" });
-        setSelectedAssignee(null);
-        setUserSearch("");
-        setCreateError("");
-        setShowCreate(true);
-      }
-    }
   }, []);
 
   /* status changed via picker */
@@ -382,60 +355,6 @@ function TasksPageInner() {
     }));
   };
 
-  /* ── Create task helpers ── */
-  const openCreateModal = async () => {
-    setCreateForm({ projectId: "", name: "", module: "", description: "", billable: true, durationUnit: "", durationValue: "" });
-    setSelectedAssignee(null);
-    setUserSearch("");
-    setCreateError("");
-    try {
-      const [pRes, uRes] = await Promise.all([
-        apiFetch("/projects?limit=200&sort=name,ASC"),
-        apiFetch("/users?limit=200&sort=name,ASC"),
-      ]);
-      setProjects(Array.isArray(pRes) ? pRes : pRes.data ?? []);
-      setUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
-    } catch (e) { console.error(e); }
-    setShowCreate(true);
-  };
-
-  const submitCreate = async () => {
-    if (!createForm.projectId) { setCreateError("Please select a project."); return; }
-    if (!createForm.name.trim()) { setCreateError("Please enter a task name."); return; }
-    setCreating(true);
-    setCreateError("");
-    try {
-      const body: Record<string, unknown> = {
-        name: createForm.name.trim(),
-        projectId: Number(createForm.projectId),
-        billable: createForm.billable,
-      };
-      if (createForm.module) body.module = createForm.module;
-      if (createForm.description.trim()) body.description = createForm.description.trim();
-      if (createForm.durationUnit) body.durationUnit = createForm.durationUnit;
-      if (createForm.durationUnit && createForm.durationValue) body.durationValue = Number(createForm.durationValue);
-      const task: Task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
-
-      if (selectedAssignee !== null) {
-        await apiFetch(`/tasks/${task.id}/assignees`, {
-          method: "POST",
-          body: JSON.stringify({ userId: selectedAssignee }),
-        });
-        /* auto-advance to ASSIGNED */
-        await apiFetch(`/tasks/${task.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: "ASSIGNED" }),
-        });
-      }
-
-      setShowCreate(false);
-      await loadTasks();
-    } catch (err: unknown) {
-      setCreateError((err as { message?: string }).message ?? "Failed to create task.");
-    } finally {
-      setCreating(false);
-    }
-  };
 
   /* ── Forward / Assign task helpers ── */
   const openForward = async (task: Task) => {
@@ -524,18 +443,6 @@ function TasksPageInner() {
     return true;
   });
 
-  const moduleFilteredUsers = createForm.module
-    ? users.filter((u) => u.module === createForm.module)
-    : users;
-  const filteredUsers = moduleFilteredUsers.filter(
-    (u) => !userSearch.trim() ||
-      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearch.toLowerCase())
-  );
-  const selectedAssigneeName = selectedAssignee !== null
-    ? users.find((u) => u.id === selectedAssignee)?.name
-    : null;
-
   /* forward modal derived lists */
   const fwdModuleUsers = fwdModule
     ? fwdAllUsers.filter((u) => u.module === fwdModule)
@@ -563,6 +470,11 @@ function TasksPageInner() {
     INTERN: "bg-amber-100 text-amber-700",
   };
 
+  const AVATAR_COLORS = [
+    "bg-indigo-500", "bg-violet-500", "bg-sky-500", "bg-teal-500",
+    "bg-emerald-500", "bg-rose-500", "bg-amber-500", "bg-fuchsia-500",
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -571,14 +483,6 @@ function TasksPageInner() {
           <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">Tasks</h1>
           <p className="text-sm text-slate-500 mt-1">All tasks across your projects</p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition"
-          >
-            <Plus size={15} /> New Task
-          </button>
-        )}
       </div>
 
       {/* Summary cards */}
@@ -746,12 +650,43 @@ function TasksPageInner() {
                         </span>
                       )}
 
-                      {(task.assignees?.length ?? 0) > 0 && (
-                        <span className="flex items-center gap-1 text-xs text-slate-400">
-                          <Users size={11} />
-                          {task.assignees!.map((a) => a.name).join(", ")}
+                      {task.taskType && (
+                        <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full
+                          ${task.taskType === "SHARED" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"}`}>
+                          {task.taskType === "SHARED" ? <Users size={9} /> : <UserCircle2 size={9} />}
+                          {task.taskType === "SHARED" ? "Shared" : "Dedicated"}
                         </span>
                       )}
+
+                      {(task.assignees?.length ?? 0) > 0 && (() => {
+                        const assignees = task.assignees!;
+                        const visible = assignees.slice(0, 3);
+                        const overflow = assignees.length - 3;
+                        return (
+                          <span className="flex items-center gap-1.5">
+                            <div className="flex -space-x-1.5">
+                              {visible.map((a, i) => (
+                                <div
+                                  key={a.id}
+                                  title={a.name}
+                                  className={`w-5 h-5 rounded-full ${AVATAR_COLORS[i % AVATAR_COLORS.length]} text-white text-[9px] font-bold flex items-center justify-center border border-white`}
+                                >
+                                  {a.name[0]?.toUpperCase() ?? "?"}
+                                </div>
+                              ))}
+                              {overflow > 0 && (
+                                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 text-[9px] font-bold flex items-center justify-center border border-white">
+                                  +{overflow}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-500">
+                              {assignees.slice(0, 2).map(a => a.name.split(" ")[0]).join(", ")}
+                              {assignees.length > 2 ? ` +${assignees.length - 2}` : ""}
+                            </span>
+                          </span>
+                        );
+                      })()}
 
                       {isForwarded && task.forwardedFrom && (
                         <span className="flex items-center gap-1 text-xs text-slate-400">
@@ -837,254 +772,6 @@ function TasksPageInner() {
           </AnimatePresence>
         </div>
       )}
-
-      {/* ══════ CREATE TASK MODAL ══════ */}
-      <AnimatePresence>
-        {showCreate && (
-          <motion.div
-            className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
-              className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 flex flex-col max-h-[90vh]"
-            >
-              {/* Header */}
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-                <div>
-                  <h3 className="font-semibold text-slate-900">Create Task</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Add a new task and assign team members</p>
-                </div>
-                <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
-              </div>
-
-              {/* Body */}
-              <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-                {/* Project */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Project <span className="text-red-400">*</span>
-                  </label>
-                  <Combobox
-                    value={createForm.projectId}
-                    onChange={(val) => setCreateForm((f) => ({ ...f, projectId: val }))}
-                    placeholder="Select a project…"
-                    searchable
-                    options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
-                  />
-                </div>
-
-                {/* Task name */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Task Name <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Implement login flow"
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-                    onKeyDown={(e) => e.key === "Enter" && submitCreate()}
-                    className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Description <span className="font-normal normal-case text-slate-400">(optional)</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="What does this task involve?"
-                    value={createForm.description}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-                    className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 resize-none"
-                  />
-                </div>
-
-                {/* Billable toggle */}
-                <div className="flex items-center justify-between py-1">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Billable</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {createForm.billable ? "This task is billable" : "This task is non-billable"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCreateForm((f) => ({ ...f, billable: !f.billable }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${createForm.billable ? "bg-emerald-500" : "bg-slate-200"
-                      }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.billable ? "translate-x-6" : "translate-x-1"
-                        }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Duration */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Duration
-                  </label>
-                  <div className="flex gap-2">
-                    <Combobox
-                      className="w-1/2"
-                      value={createForm.durationUnit}
-                      onChange={(val) => setCreateForm((f) => ({
-                        ...f,
-                        durationUnit: val as "" | "HOUR" | "DAY",
-                        durationValue: val === "HOUR" ? "0.5" : val === "DAY" ? "1" : "",
-                      }))}
-                      placeholder="— Unit —"
-                      options={[
-                        { value: "", label: "— Unit —" },
-                        { value: "HOUR", label: "Hour" },
-                        { value: "DAY", label: "Day" },
-                      ]}
-                    />
-                    <input
-                      type="number"
-                      min={createForm.durationUnit === "HOUR" ? 0.5 : 1}
-                      max={createForm.durationUnit === "HOUR" ? 24 : undefined}
-                      step={createForm.durationUnit === "HOUR" ? 0.5 : 1}
-                      disabled={!createForm.durationUnit}
-                      value={createForm.durationValue}
-                      onChange={(e) => setCreateForm((f) => ({ ...f, durationValue: e.target.value }))}
-                      placeholder="0"
-                      className="w-1/2 border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:opacity-40 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-
-                {/* SAP Module */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                    SAP Module
-                  </label>
-                  <Combobox
-                    value={createForm.module}
-                    onChange={(val) => {
-                      setCreateForm((f) => ({ ...f, module: val }));
-                      setSelectedAssignee(null);
-                    }}
-                    placeholder="— Select module (optional) —"
-                    searchable
-                    options={[
-                      { value: "", label: "No module" },
-                      ...SAP_MODULES.map((m) => ({ value: m.value, label: m.label })),
-                    ]}
-                  />
-                </div>
-
-                {/* Assignee (single) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                      Assign To
-                      {createForm.module && (
-                        <span className="ml-2 normal-case font-normal text-slate-400">
-                          — filtered by {MODULE_LABEL[createForm.module]}
-                          {moduleFilteredUsers.length === 0 && " (no members)"}
-                        </span>
-                      )}
-                    </label>
-                    {selectedAssignee !== null && (
-                      <button
-                        onClick={() => setSelectedAssignee(null)}
-                        className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1 transition"
-                      >
-                        <X size={11} /> Clear
-                      </button>
-                    )}
-                  </div>
-
-                  {selectedAssigneeName && (
-                    <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                      <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-                      <span className="text-sm font-medium text-blue-800">{selectedAssigneeName}</span>
-                      <span className="ml-auto text-[10px] text-blue-500 font-semibold bg-blue-100 px-2 py-0.5 rounded-full">ASSIGNED</span>
-                    </div>
-                  )}
-
-                  <div className="relative mb-2">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      placeholder="Search users…"
-                      value={userSearch}
-                      onChange={(e) => setUserSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                    {userSearch && (
-                      <button onClick={() => setUserSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                    {filteredUsers.length === 0 ? (
-                      <p className="text-sm text-slate-400 text-center py-6">
-                        {createForm.module && moduleFilteredUsers.length === 0
-                          ? `No users assigned to ${MODULE_LABEL[createForm.module]} yet`
-                          : "No users found"}
-                      </p>
-                    ) : (
-                      filteredUsers.map((u) => {
-                        const selected = selectedAssignee === u.id;
-                        return (
-                          <label
-                            key={u.id}
-                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${selected ? "bg-blue-50/60" : ""}`}
-                          >
-                            <input
-                              type="radio"
-                              name="assignee"
-                              checked={selected}
-                              onChange={() => setSelectedAssignee(u.id)}
-                              className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
-                              <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
-                            </div>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
-                              {u.role}
-                            </span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {createError && (
-                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100 flex-shrink-0">
-                <button
-                  onClick={submitCreate}
-                  disabled={creating}
-                  className="flex-1 bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {creating ? <><Loader2 size={15} className="animate-spin" /> Creating…</> : <><Plus size={15} /> Create Task</>}
-                </button>
-                <button
-                  onClick={() => setShowCreate(false)}
-                  className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ══════ FORWARD TASK MODAL ══════ */}
       <AnimatePresence>
