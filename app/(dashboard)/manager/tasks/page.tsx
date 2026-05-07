@@ -22,6 +22,7 @@ type Task = {
   description?: string | null;
   status: TaskStatus;
   billable?: boolean;
+  taskType?: "DEDICATED" | "SHARED" | null;
   module?: string | null;
   durationUnit?: "HOUR" | "DAY" | null;
   durationValue?: number | null;
@@ -90,10 +91,11 @@ function StatusIcon({ status }: { status: TaskStatus }) {
 }
 
 /* ─── Inline Status Picker ─── */
-function StatusPicker({ taskId, current, onChanged }: {
+function StatusPicker({ taskId, current, onChanged, onForward }: {
   taskId: number;
   current: TaskStatus;
   onChanged: (id: number, next: TaskStatus) => void;
+  onForward: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -159,6 +161,14 @@ function StatusPicker({ taskId, current, onChanged }: {
                 </button>
               );
             })}
+            <div className="mx-3 my-1 border-t border-slate-100" />
+            <button
+              onClick={() => { setOpen(false); onForward(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-indigo-50 text-indigo-600 transition text-left"
+            >
+              <Forward size={13} className="flex-shrink-0" />
+              Forward Task
+            </button>
           </motion.div>
         )}
 
@@ -205,6 +215,8 @@ export default function ManagerTasksPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const meId = Number(session?.user?.id ?? 0);
+  const callerRole = session?.user?.role ?? "";
+  const isAdmin = callerRole === "ADMIN" || callerRole === "SUPERADMIN";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -219,8 +231,11 @@ export default function ManagerTasksPage() {
 
   /* create modal */
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ projectId: "", name: "", description: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
+  const [createForm, setCreateForm] = useState({ projectId: "", name: "", description: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "", taskType: "DEDICATED" as "DEDICATED" | "SHARED" });
   const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
+  const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
+  const [projectMembers, setProjectMembers] = useState<User[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -228,12 +243,23 @@ export default function ManagerTasksPage() {
   /* delete */
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  /* forward modal */
+  const [fwdTask, setFwdTask]       = useState<Task | null>(null);
+  const [fwdAllUsers, setFwdAllUsers] = useState<User[]>([]);
+  const [fwdModule, setFwdModule]   = useState("");
+  const [fwdUserId, setFwdUserId]   = useState<number | null>(null);
+  const [fwdSearch, setFwdSearch]   = useState("");
+  const [forwarding, setForwarding] = useState(false);
+  const [fwdErr, setFwdErr]         = useState("");
+
   /* ── Load data ── */
   const load = async (mId: number) => {
     setLoading(true);
     try {
-      const pmRes = await apiFetch(`/projects?filter=projectManagerId||$eq||${mId}&limit=200`);
-      const pmProjects: Project[] = Array.isArray(pmRes) ? pmRes : (pmRes.data ?? []);
+      const projRes = await apiFetch(
+        isAdmin ? `/projects?limit=500&sort=name,ASC` : `/projects?filter=projectManagerId||$eq||${mId}&limit=200`
+      );
+      const pmProjects: Project[] = Array.isArray(projRes) ? projRes : (projRes.data ?? []);
       setProjects(pmProjects);
 
       if (pmProjects.length === 0) { setTasks([]); setLoading(false); return; }
@@ -280,13 +306,59 @@ export default function ManagerTasksPage() {
     finally { setDeletingId(null); }
   };
 
+  /* ── Forward task ── */
+  const openForward = async (task: Task) => {
+    setFwdTask(task);
+    setFwdModule("");
+    setFwdUserId(null);
+    setFwdSearch("");
+    setFwdErr("");
+    try {
+      const uRes = await apiFetch("/users?limit=200&sort=name,ASC");
+      setFwdAllUsers(Array.isArray(uRes) ? uRes : uRes.data ?? []);
+    } catch { }
+  };
+
+  const submitForward = async () => {
+    if (!fwdModule) { setFwdErr("Select a module."); return; }
+    if (!fwdUserId) { setFwdErr("Select a user."); return; }
+    setForwarding(true); setFwdErr("");
+    try {
+      await apiFetch(`/tasks/${fwdTask!.id}/forward`, {
+        method: "POST",
+        body: JSON.stringify({ toUserId: fwdUserId }),
+      });
+      setFwdTask(null);
+      await load(meId);
+    } catch (e: any) {
+      setFwdErr(e.message ?? "Failed to forward task.");
+    } finally {
+      setForwarding(false);
+    }
+  };
+
   /* ── Create task ── */
   const openCreate = () => {
-    setCreateForm({ projectId: "", name: "", description: "", billable: true, durationUnit: "", durationValue: "" });
+    setCreateForm({ projectId: "", name: "", description: "", billable: true, durationUnit: "", durationValue: "", taskType: "DEDICATED" });
     setSelectedAssignee(null);
+    setSelectedAssignees([]);
+    setProjectMembers([]);
     setUserSearch("");
     setCreateError("");
     setShowCreate(true);
+  };
+
+  const fetchProjectMembers = async (projectId: string) => {
+    if (!projectId) { setProjectMembers([]); return; }
+    setLoadingMembers(true);
+    try {
+      const res = await apiFetch(`/projects/${projectId}?join=members`);
+      setProjectMembers(Array.isArray(res.members) ? res.members : []);
+    } catch {
+      setProjectMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
   };
 
   const submitCreate = async () => {
@@ -298,6 +370,7 @@ export default function ManagerTasksPage() {
         name: createForm.name.trim(),
         projectId: Number(createForm.projectId),
         billable: createForm.billable,
+        taskType: createForm.taskType,
       };
       if (createForm.description.trim()) body.description = createForm.description.trim();
       if (createForm.durationUnit) body.durationUnit = createForm.durationUnit;
@@ -305,15 +378,15 @@ export default function ManagerTasksPage() {
 
       const task: Task = await apiFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
 
-      if (selectedAssignee !== null) {
-        await apiFetch(`/tasks/${task.id}/assignees`, {
-          method: "POST",
-          body: JSON.stringify({ userId: selectedAssignee }),
-        });
-        await apiFetch(`/tasks/${task.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: "ASSIGNED" }),
-        });
+      const assigneeIds = createForm.taskType === "SHARED" ? selectedAssignees : (selectedAssignee !== null ? [selectedAssignee] : []);
+
+      if (assigneeIds.length > 0) {
+        await Promise.all(
+          assigneeIds.map((uid) =>
+            apiFetch(`/tasks/${task.id}/assignees`, { method: "POST", body: JSON.stringify({ userId: uid }) })
+          )
+        );
+        await apiFetch(`/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify({ status: "ASSIGNED" }) });
       }
 
       setShowCreate(false);
@@ -352,13 +425,31 @@ export default function ManagerTasksPage() {
     return [...map.values()];
   }, [filtered, projects]);
 
-  /* ── User lists for create modal ── */
+  /* ── Forward modal derived lists ── */
+  const SAP_MODULES = [
+    { value: "SAP_BTP", label: "SAP BTP" }, { value: "SAP_MM", label: "SAP MM" },
+    { value: "SAP_FICO", label: "SAP FICO" }, { value: "SAP_SF", label: "SAP SF" },
+    { value: "SAP_SD", label: "SAP SD" }, { value: "SAP_HCM", label: "SAP HCM" },
+    { value: "SAP_ABAP", label: "SAP ABAP" }, { value: "SAP_PS", label: "SAP PS" },
+  ] as const;
+  const MODULE_LABEL: Record<string, string> = Object.fromEntries(SAP_MODULES.map((m) => [m.value, m.label]));
+  const occupiedModules = SAP_MODULES.filter((m) => fwdAllUsers.some((u) => u.module === m.value));
+  const fwdModuleUsers = fwdModule ? fwdAllUsers.filter((u) => u.module === fwdModule) : [];
+  const fwdFilteredUsers = fwdModuleUsers.filter((u) =>
+    !fwdSearch.trim() ||
+    u.name.toLowerCase().includes(fwdSearch.toLowerCase()) ||
+    (u.designation ?? "").toLowerCase().includes(fwdSearch.toLowerCase())
+  );
+  const fwdSelectedName = fwdUserId !== null ? fwdAllUsers.find((u) => u.id === fwdUserId)?.name : null;
+
+  /* ── User lists for create modal — project members when project selected ── */
+  const memberList = createForm.projectId && projectMembers.length > 0 ? projectMembers : users;
   const filteredUsers = useMemo(() =>
-    users.filter((u) =>
+    memberList.filter((u) =>
       !userSearch.trim() ||
       u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase())
-    ), [users, userSearch]);
+    ), [memberList, userSearch]);
 
   /* ── Stats ── */
   const completedCount = tasks.filter((t) => t.status === "COMPLETED").length;
@@ -419,14 +510,18 @@ export default function ManagerTasksPage() {
         </div>
 
         {projects.length > 1 && (
-          <select
-            value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-          >
-            <option value="ALL">All Projects</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <div className="w-56">
+            <Combobox
+              value={projectFilter === "ALL" ? "" : String(projectFilter)}
+              onChange={(val) => setProjectFilter(val === "" ? "ALL" : Number(val))}
+              placeholder="All Projects"
+              searchable
+              options={[
+                { value: "", label: "All Projects" },
+                ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+              ]}
+            />
+          </div>
         )}
 
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-wrap">
@@ -517,15 +612,17 @@ export default function ManagerTasksPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <StatusPicker taskId={task.id} current={task.status} onChanged={handleStatusChanged} />
-                            {/* <button
-                              onClick={async (e) => { e.stopPropagation(); if (confirm("Delete this task?")) await deleteTask(task.id); }}
-                              disabled={deletingId === task.id}
-                              className="p-1 text-slate-300 hover:text-red-500 transition disabled:opacity-40"
-                              title="Delete task"
-                            >
-                              {deletingId === task.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                            </button> */}
+                            <StatusPicker taskId={task.id} current={task.status} onChanged={handleStatusChanged} onForward={() => openForward(task)} />
+                            {(isAdmin || projects.some((p) => p.id === (task.projectId ?? task.project?.id))) && (
+                              <button
+                                onClick={async (e) => { e.stopPropagation(); if (confirm("Delete this task?")) await deleteTask(task.id); }}
+                                disabled={deletingId === task.id}
+                                className="p-1 text-slate-300 hover:text-red-500 transition disabled:opacity-40"
+                                title="Delete task"
+                              >
+                                {deletingId === task.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                              </button>
+                            )}
                             <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 transition" />
                           </div>
                         </div>
@@ -565,6 +662,15 @@ export default function ManagerTasksPage() {
                             {task.billable !== false ? "Billable" : "Non-billable"}
                           </span>
 
+                          {/* Task Type */}
+                          {task.taskType && (
+                            <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full font-medium
+                              ${task.taskType === "SHARED" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"}`}>
+                              {task.taskType === "SHARED" ? <Users size={9} /> : <UserCircle2 size={9} />}
+                              {task.taskType === "SHARED" ? "Shared" : "Dedicated"}
+                            </span>
+                          )}
+
                           {/* Module */}
                           {task.module && (
                             <span className="inline-flex text-[11px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">
@@ -582,7 +688,7 @@ export default function ManagerTasksPage() {
                           {/* Created date */}
                           <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                             <Calendar size={10} />
-                            {new Date(task.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                            {new Date(task.createdAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
                           </span>
                         </div>
                       </div>
@@ -594,6 +700,143 @@ export default function ManagerTasksPage() {
           </div>
         ))}
       </div>
+
+      {/* ══ FORWARD TASK MODAL ══ */}
+      <AnimatePresence>
+        {fwdTask && (
+          <motion.div
+            className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setFwdTask(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 12 }}
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+                    <Forward size={14} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Forward Task</h3>
+                    <p className="text-xs text-slate-400 truncate max-w-[240px]">{fwdTask.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setFwdTask(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+                {/* Step 1 — Module */}
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">1 · Select Module</p>
+                  {occupiedModules.length === 0 ? (
+                    <p className="text-sm text-slate-400 italic">No modules with assigned users found.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {occupiedModules.map((m) => (
+                        <button
+                          key={m.value}
+                          onClick={() => { setFwdModule(m.value); setFwdUserId(null); setFwdSearch(""); }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                            fwdModule === m.value
+                              ? "bg-indigo-600 text-white border-indigo-600"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2 — User */}
+                {fwdModule && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                      2 · Select User
+                      <span className="ml-2 normal-case font-normal text-slate-400">— {MODULE_LABEL[fwdModule]}</span>
+                    </p>
+
+                    {fwdSelectedName && (
+                      <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-indigo-800">{fwdSelectedName}</span>
+                        <span className="ml-auto text-[10px] text-indigo-500 font-semibold bg-indigo-100 px-2 py-0.5 rounded-full">Selected</span>
+                      </div>
+                    )}
+
+                    <div className="relative mb-2">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        placeholder="Search users…"
+                        value={fwdSearch}
+                        onChange={(e) => setFwdSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      {fwdSearch && (
+                        <button onClick={() => setFwdSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X size={12} /></button>
+                      )}
+                    </div>
+
+                    <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                      {fwdFilteredUsers.length === 0 ? (
+                        <p className="text-sm text-slate-400 text-center py-6">
+                          {fwdModuleUsers.length === 0 ? `No users in ${MODULE_LABEL[fwdModule]}` : "No users match search"}
+                        </p>
+                      ) : fwdFilteredUsers.map((u) => {
+                        const sel = fwdUserId === u.id;
+                        const isCurrent = fwdTask.assignees?.some((a) => a.id === u.id);
+                        return (
+                          <label
+                            key={u.id}
+                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${sel ? "bg-indigo-50/60" : ""} ${isCurrent ? "opacity-50 pointer-events-none" : ""}`}
+                          >
+                            <input type="radio" name="fwd-assignee" checked={sel} onChange={() => setFwdUserId(u.id)}
+                              disabled={isCurrent} className="w-4 h-4 text-indigo-600" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-900 truncate">
+                                {u.name}{isCurrent && <span className="ml-2 text-[10px] text-slate-400">(current assignee)</span>}
+                              </p>
+                              <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
+                              {u.role}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {fwdErr && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{fwdErr}</p>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 pt-3 flex gap-3 border-t border-slate-100 flex-shrink-0">
+                <button
+                  onClick={submitForward}
+                  disabled={forwarding || !fwdModule || !fwdUserId}
+                  className="flex-1 bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {forwarding
+                    ? <><Loader2 size={15} className="animate-spin" /> Forwarding…</>
+                    : <><Forward size={15} /> Forward Task</>
+                  }
+                </button>
+                <button onClick={() => setFwdTask(null)} className="flex-1 border border-slate-200 py-2.5 rounded-lg text-sm hover:bg-slate-50 transition">
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ══ CREATE TASK MODAL ══ */}
       <AnimatePresence>
@@ -627,7 +870,12 @@ export default function ManagerTasksPage() {
                   </label>
                   <Combobox
                     value={createForm.projectId}
-                    onChange={(val) => setCreateForm((f) => ({ ...f, projectId: val }))}
+                    onChange={(val) => {
+                      setCreateForm((f) => ({ ...f, projectId: val }));
+                      setSelectedAssignee(null);
+                      setSelectedAssignees([]);
+                      fetchProjectMembers(val);
+                    }}
                     placeholder="Select a project…"
                     searchable
                     options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
@@ -661,6 +909,37 @@ export default function ManagerTasksPage() {
                     onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
                     className="w-full border border-slate-200 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 resize-none"
                   />
+                </div>
+
+                {/* Task Type */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Task Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["DEDICATED", "SHARED"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          setCreateForm((f) => ({ ...f, taskType: type }));
+                          setSelectedAssignee(null);
+                          setSelectedAssignees([]);
+                        }}
+                        className={`py-2.5 rounded-lg border text-xs font-semibold transition flex flex-col items-center gap-1 ${
+                          createForm.taskType === type
+                            ? type === "DEDICATED"
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-indigo-600 text-white border-indigo-600"
+                            : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                        }`}
+                      >
+                        {type === "DEDICATED" ? <UserCircle2 size={16} /> : <Users size={16} />}
+                        {type}
+                        <span className={`text-[10px] font-normal ${createForm.taskType === type ? "opacity-80" : "text-slate-400"}`}>
+                          {type === "DEDICATED" ? "Single assignee" : "Multiple members"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Billable */}
@@ -714,16 +993,38 @@ export default function ManagerTasksPage() {
                 {/* Assignee */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Assign To</label>
-                    {selectedAssignee !== null && (
-                      <button onClick={() => setSelectedAssignee(null)}
-                        className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1 transition">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      {createForm.taskType === "SHARED" ? "Assign Members" : "Assign To"}
+                    </label>
+                    {(createForm.taskType === "DEDICATED" ? selectedAssignee !== null : selectedAssignees.length > 0) && (
+                      <button
+                        onClick={() => { setSelectedAssignee(null); setSelectedAssignees([]); }}
+                        className="text-[11px] text-slate-400 hover:text-red-500 flex items-center gap-1 transition"
+                      >
                         <X size={11} /> Clear
                       </button>
                     )}
                   </div>
 
-                  {selectedAssignee !== null && (
+                  {/* Selected preview — SHARED */}
+                  {createForm.taskType === "SHARED" && selectedAssignees.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {selectedAssignees.map((uid) => {
+                        const u = users.find((u) => u.id === uid);
+                        return (
+                          <span key={uid} className="flex items-center gap-1 text-xs px-2 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-full font-medium">
+                            {u?.name ?? uid}
+                            <button onClick={() => setSelectedAssignees((prev) => prev.filter((id) => id !== uid))} className="text-indigo-400 hover:text-red-500">
+                              <X size={10} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Selected preview — DEDICATED */}
+                  {createForm.taskType === "DEDICATED" && selectedAssignee !== null && (
                     <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
                       <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                       <span className="text-sm font-medium text-blue-800">
@@ -747,30 +1048,45 @@ export default function ManagerTasksPage() {
                   </div>
 
                   <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                    {filteredUsers.length === 0 ? (
-                      <p className="text-sm text-slate-400 text-center py-6">No users found</p>
-                    ) : (
-                      filteredUsers.map((u) => {
-                        const selected = selectedAssignee === u.id;
-                        return (
-                          <label key={u.id}
-                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${selected ? "bg-blue-50/60" : ""}`}
-                          >
+                    {!createForm.projectId ? (
+                      <p className="text-sm text-slate-400 text-center py-6">Select a project first</p>
+                    ) : loadingMembers ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-slate-400">
+                        <Loader2 size={14} className="animate-spin" />
+                        <span className="text-sm">Loading members…</span>
+                      </div>
+                    ) : filteredUsers.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-6">No members found</p>
+                    ) : filteredUsers.map((u) => {
+                      const isShared = createForm.taskType === "SHARED";
+                      const selected = isShared ? selectedAssignees.includes(u.id) : selectedAssignee === u.id;
+                      return (
+                        <label key={u.id}
+                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition ${selected ? (isShared ? "bg-indigo-50/60" : "bg-blue-50/60") : ""}`}
+                        >
+                          {isShared ? (
+                            <input type="checkbox" checked={selected}
+                              onChange={() => setSelectedAssignees((prev) =>
+                                prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id]
+                              )}
+                              className="w-4 h-4 text-indigo-600 rounded"
+                            />
+                          ) : (
                             <input type="radio" name="assignee" checked={selected}
                               onChange={() => setSelectedAssignee(u.id)}
                               className="w-4 h-4 text-blue-600"
                             />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
-                              <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
-                            </div>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
-                              {u.role}
-                            </span>
-                          </label>
-                        );
-                      })
-                    )}
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate">{u.name}</p>
+                            <p className="text-xs text-slate-400 truncate">{u.designation ?? u.email}</p>
+                          </div>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-600"}`}>
+                            {u.role}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
 
