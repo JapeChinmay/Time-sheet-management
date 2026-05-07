@@ -121,6 +121,10 @@ export default function UserDetailPage() {
   const [sendingWelcome, setSendingWelcome] = useState(false);
   const [welcomeMsg,     setWelcomeMsg]     = useState("");
 
+  /* reset link email */
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resetMsg,     setResetMsg]     = useState("");
+
   /* password change */
   const [showPwdModal, setShowPwdModal]   = useState(false);
   const [newPwd, setNewPwd]               = useState("");
@@ -368,6 +372,30 @@ export default function UserDetailPage() {
               {welcomeMsg && (
                 <span className={`text-xs ${welcomeMsg.includes("ailed") ? "text-red-500" : "text-emerald-600"}`}>
                   {welcomeMsg}
+                </span>
+              )}
+              <button
+                disabled={sendingReset}
+                onClick={async () => {
+                  setSendingReset(true);
+                  setResetMsg("");
+                  try {
+                    const r = await apiFetch(`/users/${user.id}/send-reset-link`, { method: "POST" });
+                    setResetMsg(r.message ?? "Link sent!");
+                  } catch (e: any) {
+                    setResetMsg(e.message ?? "Failed to send link.");
+                  } finally {
+                    setSendingReset(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-700 transition disabled:opacity-50"
+              >
+                {sendingReset ? <Loader2 size={12} className="animate-spin" /> : <KeyRound size={12} />}
+                Send Password Link
+              </button>
+              {resetMsg && (
+                <span className={`text-xs ${resetMsg.includes("ailed") ? "text-red-500" : "text-violet-600"}`}>
+                  {resetMsg}
                 </span>
               )}
             </div>
