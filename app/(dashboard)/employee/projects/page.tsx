@@ -229,10 +229,14 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "CREATED" | "ACTIVE" | "INACTIVE" | "COMPLETED">("ALL");
 
+  const meId = Number(session?.user?.id ?? 0);
+
   const loadProjects = async () => {
     try {
       const res = await apiFetch("/projects?join=members&join=projectManager&limit=200");
-      setProjects(Array.isArray(res) ? res : res.data ?? []);
+      const all: Project[] = Array.isArray(res) ? res : res.data ?? [];
+      /* show only projects where the user is a member */
+      setProjects(all.filter((p) => p.members?.some((m) => m.id === meId)));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -240,7 +244,7 @@ export default function ProjectsPage() {
     }
   };
 
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { if (meId) loadProjects(); }, [meId]);
 
   /* filtered list */
   const filtered = useMemo(() => {

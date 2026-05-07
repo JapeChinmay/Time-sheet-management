@@ -130,13 +130,17 @@ export default function ManagerProjectsPage() {
   /* local edits to responsibility % */
   const [respEdits, setRespEdits] = useState<Record<number, string>>({});
 
-  const loadProjects = () =>
-    apiFetch("/projects?join=members&join=projectManager&limit=200")
+  const loadProjects = () => {
+    const url = isAdmin
+      ? "/projects?join=members&join=projectManager&limit=200"
+      : `/projects?filter=projectManagerId||$eq||${meId}&join=members&join=projectManager&limit=200`;
+    return apiFetch(url)
       .then((res) => setProjects(Array.isArray(res) ? res : res.data ?? []))
       .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
+  };
 
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { if (meId || isAdmin) loadProjects(); }, [meId, isAdmin]);
 
   /* open member management panel */
   const openMgmt = async (p: Project) => {

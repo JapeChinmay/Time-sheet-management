@@ -103,9 +103,10 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin": "Admin Overview",
   "/admin/audit-logs": "Activity Logs",
   "/admin/timesheets": "Timesheet Approval",
-  "/manager/timesheets": "Timesheet Approval",
-  "/manager/tasks":     "Project Tasks",
-  "/manager/leaves":        "Leave Approval",
+  "/manager/timesheets":  "Timesheet Approval",
+  "/manager/tasks":       "Project Tasks",
+  "/manager/projects":    "Manage Projects",
+  "/manager/leaves":      "Leave Approval",
   "/employee/leaves":       "My Leaves",
   "/admin/leave-policies":  "Leave Policies",
   "/hr/leaves":             "HR Leave Approval",
@@ -1077,6 +1078,7 @@ export default function DashboardLayout({
               <div className="border-t border-slate-200 my-3" />
               <p className="text-xs text-slate-400 uppercase px-2">Manager</p>
               <SidebarItem icon={<ListTodo size={16} />}        label="Project Tasks"      href="/manager/tasks"      active={pathname.startsWith("/manager/tasks")}      onClose={() => setOpen(false)} />
+              <SidebarItem icon={<FolderOpen size={16} />}     label="Manage Projects"    href="/manager/projects"   active={pathname.startsWith("/manager/projects")}   onClose={() => setOpen(false)} />
               <SidebarItem icon={<ClipboardCheck size={16} />} label="Timesheet Approval" href="/manager/timesheets" active={pathname.startsWith("/manager/timesheets")} onClose={() => setOpen(false)} />
               <SidebarItem icon={<Palmtree size={16} />}        label="Leave Approval"    href="/manager/leaves"     active={pathname.startsWith("/manager/leaves")}     onClose={() => setOpen(false)} />
             </>
