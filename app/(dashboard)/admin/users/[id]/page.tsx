@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Clock, Briefcase, CheckCircle2, XCircle,
   AlertCircle, TrendingUp, LogIn, Globe, Monitor, Calendar, Pencil, X, Check,
-  KeyRound, Eye, EyeOff,
+  KeyRound, Eye, EyeOff, Mail, Loader2,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -116,6 +116,10 @@ export default function UserDetailPage() {
 
   /* leave policies */
   const [policies, setPolicies] = useState<{ id: number; name: string }[]>([]);
+
+  /* welcome email */
+  const [sendingWelcome, setSendingWelcome] = useState(false);
+  const [welcomeMsg,     setWelcomeMsg]     = useState("");
 
   /* password change */
   const [showPwdModal, setShowPwdModal]   = useState(false);
@@ -342,6 +346,30 @@ export default function UserDetailPage() {
               >
                 <KeyRound size={12} /> Change Password
               </button>
+              <button
+                disabled={sendingWelcome}
+                onClick={async () => {
+                  setSendingWelcome(true);
+                  setWelcomeMsg("");
+                  try {
+                    const r = await apiFetch(`/users/${user.id}/send-welcome`, { method: "POST" });
+                    setWelcomeMsg(r.message ?? "Email sent!");
+                  } catch (e: any) {
+                    setWelcomeMsg(e.message ?? "Failed to send email.");
+                  } finally {
+                    setSendingWelcome(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition disabled:opacity-50"
+              >
+                {sendingWelcome ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+                Send Welcome Email
+              </button>
+              {welcomeMsg && (
+                <span className={`text-xs ${welcomeMsg.includes("ailed") ? "text-red-500" : "text-emerald-600"}`}>
+                  {welcomeMsg}
+                </span>
+              )}
             </div>
           )}
         </div>

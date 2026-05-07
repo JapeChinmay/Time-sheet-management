@@ -36,15 +36,15 @@ type User = { id: number; name: string; email: string; role: string; designation
 
 /* ─── Status meta ─── */
 const STATUS_META: Record<string, { label: string; badge: string; dot: string }> = {
-  CREATED:             { label: "Created",          badge: "bg-slate-100 text-slate-600 border-slate-200",  dot: "bg-slate-400"  },
-  ASSIGNED:            { label: "Assigned",          badge: "bg-blue-50 text-blue-700 border-blue-200",      dot: "bg-blue-500"   },
-  WORK_IN_PROGRESS:    { label: "In Progress",       badge: "bg-amber-50 text-amber-700 border-amber-200",   dot: "bg-amber-500"  },
-  ON_HOLD:             { label: "On Hold",           badge: "bg-orange-50 text-orange-700 border-orange-200",dot: "bg-orange-500" },
-  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency",   badge: "bg-red-50 text-red-700 border-red-200",         dot: "bg-red-500"    },
-  COMPLETED:           { label: "Completed",         badge: "bg-green-50 text-green-700 border-green-200",   dot: "bg-green-500"  },
+  CREATED: { label: "Created", badge: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400" },
+  ASSIGNED: { label: "Assigned", badge: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  WORK_IN_PROGRESS: { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
+  ON_HOLD: { label: "On Hold", badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+  EXTERNAL_DEPENDENCY: { label: "Ext. Dependency", badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+  COMPLETED: { label: "Completed", badge: "bg-green-50 text-green-700 border-green-200", dot: "bg-green-500" },
 };
 
-const ALL_STATUSES: TaskStatus[] = ["CREATED","ASSIGNED","WORK_IN_PROGRESS","ON_HOLD","EXTERNAL_DEPENDENCY","COMPLETED"];
+const ALL_STATUSES: TaskStatus[] = ["CREATED", "ASSIGNED", "WORK_IN_PROGRESS", "ON_HOLD", "EXTERNAL_DEPENDENCY", "COMPLETED"];
 
 const ROLE_COLORS: Record<string, string> = {
   SUPERADMIN: "bg-rose-100 text-rose-700",
@@ -57,8 +57,8 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const AVATAR_COLORS = [
-  "bg-indigo-500","bg-violet-500","bg-sky-500","bg-teal-500",
-  "bg-emerald-500","bg-rose-500","bg-amber-500","bg-fuchsia-500",
+  "bg-indigo-500", "bg-violet-500", "bg-sky-500", "bg-teal-500",
+  "bg-emerald-500", "bg-rose-500", "bg-amber-500", "bg-fuchsia-500",
 ];
 
 /* ─── Helpers ─── */
@@ -81,11 +81,11 @@ function calcOverdue(task: Task): boolean {
 }
 
 function StatusIcon({ status }: { status: TaskStatus }) {
-  if (status === "COMPLETED")        return <CheckCircle2  size={18} className="text-green-500"  />;
-  if (status === "WORK_IN_PROGRESS") return <Clock         size={18} className="text-amber-500" />;
-  if (status === "ON_HOLD")          return <PauseCircle   size={18} className="text-orange-500"/>;
-  if (status === "EXTERNAL_DEPENDENCY") return <AlertTriangle size={18} className="text-red-500"/>;
-  if (status === "ASSIGNED")         return <Circle        size={18} className="text-blue-400"  />;
+  if (status === "COMPLETED") return <CheckCircle2 size={18} className="text-green-500" />;
+  if (status === "WORK_IN_PROGRESS") return <Clock size={18} className="text-amber-500" />;
+  if (status === "ON_HOLD") return <PauseCircle size={18} className="text-orange-500" />;
+  if (status === "EXTERNAL_DEPENDENCY") return <AlertTriangle size={18} className="text-red-500" />;
+  if (status === "ASSIGNED") return <Circle size={18} className="text-blue-400" />;
   return <Circle size={18} className="text-slate-300" />;
 }
 
@@ -95,10 +95,10 @@ function StatusPicker({ taskId, current, onChanged }: {
   current: TaskStatus;
   onChanged: (id: number, next: TaskStatus) => void;
 }) {
-  const [open, setOpen]           = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [pending, setPending]     = useState<TaskStatus | null>(null);
-  const [note, setNote]           = useState("");
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState<TaskStatus | null>(null);
+  const [note, setNote] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -125,7 +125,7 @@ function StatusPicker({ taskId, current, onChanged }: {
     finally { setSaving(false); }
   };
 
-  const meta    = STATUS_META[current];
+  const meta = STATUS_META[current];
   const options = ALL_STATUSES.filter((s) => s !== current && s !== "CREATED");
 
   return (
@@ -207,23 +207,23 @@ export default function ManagerTasksPage() {
   const meId = Number(session?.user?.id ?? 0);
 
   const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks,    setTasks]    = useState<Task[]>([]);
-  const [users,    setUsers]    = useState<User[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState("");
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   /* filters */
-  const [search,        setSearch]        = useState("");
-  const [statusFilter,  setStatusFilter]  = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [projectFilter, setProjectFilter] = useState<number | "ALL">("ALL");
 
   /* create modal */
-  const [showCreate,      setShowCreate]      = useState(false);
-  const [createForm,      setCreateForm]      = useState({ projectId: "", name: "", description: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ projectId: "", name: "", description: "", billable: true, durationUnit: "" as "" | "HOUR" | "DAY", durationValue: "" });
   const [selectedAssignee, setSelectedAssignee] = useState<number | null>(null);
-  const [userSearch,      setUserSearch]      = useState("");
-  const [creating,        setCreating]        = useState(false);
-  const [createError,     setCreateError]     = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   /* delete */
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -332,7 +332,7 @@ export default function ManagerTasksPage() {
       const matchSearch = !q || t.name.toLowerCase().includes(q) ||
         (t.description ?? "").toLowerCase().includes(q) ||
         (t.project?.name ?? "").toLowerCase().includes(q);
-      const matchStatus  = statusFilter === "ALL" || (statusFilter === "ONGOING" ? t.status !== "COMPLETED" : t.status === statusFilter);
+      const matchStatus = statusFilter === "ALL" || (statusFilter === "ONGOING" ? t.status !== "COMPLETED" : t.status === statusFilter);
       const matchProject = projectFilter === "ALL" || t.projectId === projectFilter || t.project?.id === projectFilter;
       return matchSearch && matchStatus && matchProject;
     });
@@ -362,7 +362,7 @@ export default function ManagerTasksPage() {
 
   /* ── Stats ── */
   const completedCount = tasks.filter((t) => t.status === "COMPLETED").length;
-  const overdueCount   = tasks.filter((t) => calcOverdue(t)).length;
+  const overdueCount = tasks.filter((t) => calcOverdue(t)).length;
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 gap-3 text-slate-400">
@@ -431,23 +431,22 @@ export default function ManagerTasksPage() {
 
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-wrap">
           {([
-            { key: "ONGOING",             label: "Ongoing" },
-            { key: "ALL",                 label: "All" },
-            { key: "CREATED",             label: "Created" },
-            { key: "ASSIGNED",            label: "Assigned" },
-            { key: "WORK_IN_PROGRESS",    label: "In Progress" },
-            { key: "ON_HOLD",             label: "On Hold" },
+            { key: "ONGOING", label: "Ongoing" },
+            { key: "ALL", label: "All" },
+            { key: "CREATED", label: "Created" },
+            { key: "ASSIGNED", label: "Assigned" },
+            { key: "WORK_IN_PROGRESS", label: "In Progress" },
+            { key: "ON_HOLD", label: "On Hold" },
             { key: "EXTERNAL_DEPENDENCY", label: "Ext. Dep." },
-            { key: "COMPLETED",           label: "Completed" },
+            { key: "COMPLETED", label: "Completed" },
           ] as const).map(({ key, label }) => {
-            const count = key === "ALL"     ? tasks.length
-              : key === "ONGOING"           ? tasks.filter((t) => t.status !== "COMPLETED").length
-              : tasks.filter((t) => t.status === key).length;
+            const count = key === "ALL" ? tasks.length
+              : key === "ONGOING" ? tasks.filter((t) => t.status !== "COMPLETED").length
+                : tasks.filter((t) => t.status === key).length;
             return (
               <button key={key} onClick={() => setStatusFilter(key)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition ${
-                  statusFilter === key ? "bg-white text-slate-900 shadow" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition ${statusFilter === key ? "bg-white text-slate-900 shadow" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 {label} ({count})
               </button>
@@ -519,14 +518,14 @@ export default function ManagerTasksPage() {
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                             <StatusPicker taskId={task.id} current={task.status} onChanged={handleStatusChanged} />
-                            <button
+                            {/* <button
                               onClick={async (e) => { e.stopPropagation(); if (confirm("Delete this task?")) await deleteTask(task.id); }}
                               disabled={deletingId === task.id}
                               className="p-1 text-slate-300 hover:text-red-500 transition disabled:opacity-40"
                               title="Delete task"
                             >
                               {deletingId === task.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                            </button>
+                            </button> */}
                             <ChevronRight size={15} className="text-slate-300 group-hover:text-slate-500 transition" />
                           </div>
                         </div>
