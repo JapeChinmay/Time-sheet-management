@@ -965,17 +965,17 @@ function MembersModal({ project, users, onClose, onSaved }: {
         rows.forEach((r) => {
           map[r.userId] = r.responsibility != null ? String(r.responsibility) : "";
         });
-        /* seed equal split for members with no existing value */
+        /* seed 100% default for members with no existing value */
         const ids = [...new Set([...currentIds, ...rows.map((r) => r.userId)])];
         const noValue = ids.filter((id) => map[id] === undefined || map[id] === "");
-        if (noValue.length > 0) {
-          const totalAssigned = rows.reduce((s, r) => s + (r.responsibility ?? 0), 0);
-          const share = Math.round(((100 - totalAssigned) / noValue.length) * 10) / 10;
-          noValue.forEach((id) => { map[id] = String(share); });
-        }
+        noValue.forEach((id) => { map[id] = "100"; });
         setResp(map);
       })
-      .catch(() => redistributeEqual(new Set(currentIds)));
+      .catch(() => {
+        const map: Record<number, string> = {};
+        [...currentIds].forEach((id) => { map[id] = "100"; });
+        setResp(map);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -993,8 +993,12 @@ function MembersModal({ project, users, onClose, onSaved }: {
   const toggle = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      redistributeEqual(next);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        setResp((r) => ({ ...r, [id]: r[id] ?? "100" }));
+      }
       return next;
     });
   };
@@ -1003,7 +1007,6 @@ function MembersModal({ project, users, onClose, onSaved }: {
     setResp((prev) => ({ ...prev, [id]: val }));
 
   const totalResp = [...selected].reduce((s, id) => s + (parseFloat(resp[id] ?? "0") || 0), 0);
-  const totalOk = Math.abs(totalResp - 100) < 0.5;
 
   const filtered = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -1060,9 +1063,8 @@ function MembersModal({ project, users, onClose, onSaved }: {
                   >
                     ⟳ Equal split
                   </button>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${totalOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-                    }`}>
-                    {Math.round(totalResp * 10) / 10}%
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    Total: {Math.round(totalResp * 10) / 10}%
                   </span>
                 </div>
               </div>
@@ -1093,11 +1095,6 @@ function MembersModal({ project, users, onClose, onSaved }: {
                 </div>
               ))}
 
-              {!totalOk && (
-                <p className="px-4 py-2 text-xs text-red-500 bg-red-50">
-                  Total is {Math.round(totalResp * 10) / 10}% — adjust values to reach 100%.
-                </p>
-              )}
             </div>
           )}
 

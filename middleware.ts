@@ -15,12 +15,9 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/employee", req.url));
   }
 
-  if (
-    pathname.startsWith("/manager") &&
-    !["MANAGER", "ADMIN", "SUPERADMIN", "HR"].includes(role)
-  ) {
-    return NextResponse.redirect(new URL("/employee", req.url));
-  }
+  // Manager pages are accessible to any authenticated user who may be a PM.
+  // The sidebar only shows manager links when the user is MANAGER role or a project PM.
+  // Individual pages filter data by the logged-in user.
 
   if (
     pathname.startsWith("/hr") &&

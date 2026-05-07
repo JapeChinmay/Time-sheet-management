@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock, Briefcase, CheckCircle2, AlertCircle, TrendingUp,
@@ -74,6 +75,9 @@ const EXPECTED_WEEK  = 40;
    Main component
 ═══════════════════════════════════════════ */
 export default function DashboardClient({ name }: { name: string }) {
+  const { data: session } = useSession();
+  const meId = session?.user?.id ? Number(session.user.id) : null;
+
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [projects,   setProjects]   = useState<Project[]>([]);
   const [tasks,      setTasks]      = useState<Task[]>([]);
@@ -90,13 +94,15 @@ export default function DashboardClient({ name }: { name: string }) {
 
   /* ── fetch ── */
   useEffect(() => {
+    if (!meId) return;
+
     const stored = localStorage.getItem("loginInfo");
     if (stored) setLoginInfo(JSON.parse(stored));
 
     Promise.all([
-      apiFetch("/timesheets?join=project&join=task&limit=500&sort=date,DESC"),
+      apiFetch(`/timesheets?filter=userId||$eq||${meId}&join=project&join=task&limit=500&sort=date,DESC`),
       apiFetch("/projects?limit=100"),
-      apiFetch("/tasks?join=project&limit=100"),
+      apiFetch(`/tasks?filter=assignees.id||$eq||${meId}&join=project&limit=100`),
     ])
       .then(([tsRes, projRes, taskRes]) => {
         setTimesheets(norm(tsRes));
@@ -108,7 +114,7 @@ export default function DashboardClient({ name }: { name: string }) {
 
     const t = setInterval(() => setMsgIdx(i => (i + 1) % MESSAGES.length), 3_000);
     return () => clearInterval(t);
-  }, []);
+  }, [meId]);
 
   /* ── derived stats ── */
   const todayHours = useMemo(

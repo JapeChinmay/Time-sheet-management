@@ -75,8 +75,9 @@ function StatusIcon({ status }: { status: TaskStatus }) {
 function fmtDuration(unit: string | null | undefined, value: number | null | undefined) {
   if (!unit || value == null) return null;
   if (unit === "HOUR") {
-    if (value <= 1) return `${Math.round(value * 60)} mins`;
-    return `${value} hrs`;
+    if (value === 0.5) return "30 mins";
+    if (value === 1.5) return "1.5 hrs";
+    return `${value} hr${value > 1 ? "s" : ""}`;
   }
   return `${value} day${value > 1 ? "s" : ""}`;
 }
@@ -308,25 +309,24 @@ export default function TaskDetailPage() {
                 <Combobox
                   className="flex-1"
                   value={editForm.durationUnit}
-                  onChange={(v) => setEditForm((f) => ({ ...f, durationUnit: v as "" | "HOUR" | "DAY", durationValue: "" }))}
+                  onChange={(v) => setEditForm((f) => ({
+                    ...f,
+                    durationUnit: v as "" | "HOUR" | "DAY",
+                    durationValue: v === "HOUR" ? "0.5" : v === "DAY" ? "1" : "",
+                  }))}
                   placeholder="Unit"
                   options={[{ value: "", label: "None" }, { value: "HOUR", label: "Hour" }, { value: "DAY", label: "Day" }]}
                 />
-                <Combobox
-                  className="flex-1"
-                  value={editForm.durationValue}
-                  onChange={(v) => setEditForm((f) => ({ ...f, durationValue: v }))}
-                  placeholder="Value"
+                <input
+                  type="number"
+                  min={editForm.durationUnit === "HOUR" ? 0.5 : 1}
+                  max={editForm.durationUnit === "HOUR" ? 24 : undefined}
+                  step={editForm.durationUnit === "HOUR" ? 0.5 : 1}
                   disabled={!editForm.durationUnit}
-                  options={[
-                    { value: "", label: "—" },
-                    ...(editForm.durationUnit === "HOUR"
-                      ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 20, 24].map((h) => ({ value: String(h), label: h === 0.5 ? "30 mins" : h === 1.5 ? "1.5 hrs" : `${h} hr${h > 1 ? "s" : ""}` }))
-                      : editForm.durationUnit === "DAY"
-                        ? [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30].map((d) => ({ value: String(d), label: `${d} day${d > 1 ? "s" : ""}` }))
-                        : []
-                    ),
-                  ]}
+                  value={editForm.durationValue}
+                  onChange={(e) => setEditForm((f) => ({ ...f, durationValue: e.target.value }))}
+                  placeholder="0"
+                  className="flex-1 border border-slate-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:opacity-40 disabled:cursor-not-allowed"
                 />
               </div>
             ) : (
